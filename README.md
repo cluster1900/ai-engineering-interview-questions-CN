@@ -58,6 +58,8 @@
 > 2026-10-24 增补（第 6 批）：新增 564–576 题（AI 基础设施与可扩展性章节缺失的 12 题，以及 AI 安全章节缺失的 1 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 >
 > 2026-10-24 增补（第 7 批）：新增 577–592 题（检索增强生成 RAG 5 题、微调与模型适配 7 题、向量数据库与 Embedding 4 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
+>
+> 2026-10-24 增补（第 8 批）：新增 593–610 题（评估与测试 8 题、编码与实践实现 10 题），至此上游 568 题全部有对应；编码题附可运行的参考实现（已在本地测试）。题号对照表同步更新。
 
 每个问题都按五层组织：
 
@@ -4131,6 +4133,39 @@
 
 ### 评估与测试
 
+#### 593. 如何评估 AI agent？
+**答：** agent 评估比单次 LLM 调用评估更难，因为它是多步过程：同一个任务可能有多条正确路径，中间步骤会调用工具、改变外部状态。要从两个层面评估：①结果：任务是否完成、最终答案或最终状态是否正确（例如数据库里的订单确实被取消、代码测试通过）；②过程（轨迹）：工具选择是否正确、参数是否合法、步数是否合理、有没有多余或危险操作、是否遵守权限和政策。
+**深入展开：** 方法：①构建任务集：覆盖典型、边界和失败场景，每个任务定义可自动检查的成功条件；②在可重置的沙箱环境中运行（模拟工具、测试数据库），保证可复现；③评分方式结合规则检查（状态比对、测试）、LLM 评审（评估轨迹合理性和回答质量）和人工抽检；④因为 agent 有随机性，每个任务多次运行，统计成功率以及“k 次中至少一次成功”和“k 次全部成功”等指标，后者衡量可靠性；⑤同时记录成本、延迟、步数和工具调用次数；⑥上线后用线上轨迹和用户反馈持续补充评估集。
+**后续追问：** 追问常见于：结果评估和过程评估如何取舍？如何处理多条正确路径？agent 的随机性如何体现在指标中？
+**上游参考：** [AI Agent Evaluation](https://outcomeschool.com/blog/ai-agent-evaluation)
+**扩展问题：**
+- 一个 agent 最终答案正确，但中途调用了一次不该调用的删除接口，你如何在评估中体现？
+- 如何为依赖外部 API 的 agent 构建可复现的评估环境？
+- 成功率相同的两个 agent 版本，你还会比较哪些指标？
+**推理回答：** 先说明 agent 评估的特殊性，再分结果和过程两个层面，接着给出任务集、沙箱、评分方式、多次运行和成本指标等方法。
+
+#### 594. 如何评估 LLM（LLM Evaluation）？
+**答：** LLM 评估是系统地衡量模型输出质量、能力和安全性的过程，用于模型选型、发现回归和指导改进。主要方法：①自动指标：精确匹配、F1，以及 BLEU、ROUGE 等基于文本重叠的指标（对开放式生成相关性较弱）；②基准测试：如知识、推理、数学、代码等公开基准，便于横向比较，但存在数据污染和与业务脱节的问题；③人工评估：质量最高，但成本高、慢、标注者之间有分歧，需要清晰的评分标准；④LLM 作为评审（LLM-as-a-Judge）：用强模型按评分标准打分或做两两比较，可规模化，但有位置偏差、长度偏差和偏好自身风格的问题，需要用人工标注校准。
+**深入展开：** 此外还有任务专属评估（针对业务场景构建测试集，如 RAG 的忠实度和答案相关性）和安全评估（红队测试、越狱、有害内容、偏见）。最佳实践：评估集要贴近真实使用、版本化管理并防止泄漏到训练数据；结合多种方法；离线评估与线上 A/B 测试、用户反馈互补；把评估纳入 CI，模型或提示变更时自动运行；关注细分类别而不只看总分。
+**后续追问：** 追问常见于：LLM 评审可靠吗？如何避免基准污染？开放式回答怎么打分？
+**上游参考：** [LLM Evaluation](https://outcomeschool.com/blog/llm-evaluation)
+**扩展问题：**
+- 如何设计一份评分标准，让 LLM 评审和人工评审的结果尽可能一致？
+- 两次评估的分数差了 1 个百分点，如何判断是否显著？
+- 业务场景的评估集应该如何从线上数据中采样？
+**推理回答：** 先说明评估目的，再依次介绍自动指标、基准、人工评估、LLM 评审、任务专属和安全评估，最后给出最佳实践。
+
+#### 595. 什么是 AI agent 的可观测性（observability）？
+**答：** 可观测性是指能够看清 agent 在每一次运行中到底做了什么、为什么这样做，以便调试、评估和改进。传统服务主要看日志、指标和链路追踪；agent 还需要记录完整的执行轨迹：每一步的输入提示、模型输出、思考或计划、工具调用及参数、工具返回结果、错误、耗时、token 用量和成本，并把它们组织成一棵追踪树（一次任务 → 多个步骤 → 每个 LLM 调用和工具调用）。
+**深入展开：** 为什么重要：agent 是非确定性的，同样的输入可能走不同的路径，问题往往出在中间某一步（检索到错误文档、工具参数错误、循环调用），只看最终结果无法定位。实践要点：①使用标准化的追踪格式（如 OpenTelemetry 的生成式 AI 语义约定）或专门的 LLM 可观测性平台；②关键指标：任务成功率、步数分布、工具错误率、延迟、成本、循环和超时比例；③对线上轨迹抽样做自动评估（LLM 评审）并收集用户反馈；④告警：成本突增、错误率上升、步数异常；⑤隐私：对轨迹中的个人信息脱敏，设置保留期限；⑥把发现的问题轨迹加入回归评估集。
+**后续追问：** 追问常见于：追踪中应记录哪些字段？如何从海量轨迹中发现问题？可观测性和评估是什么关系？
+**上游参考：** [AI Agent Observability](https://outcomeschool.com/blog/ai-agent-observability)
+**扩展问题：**
+- agent 的平均成本突然翻倍，你会如何利用可观测性数据定位原因？
+- 记录完整提示和输出会带来什么隐私和存储问题？如何平衡？
+- 如何从线上轨迹中自动发现 agent 陷入循环的情况？
+**推理回答：** 先定义可观测性并说明 agent 需要记录的轨迹内容，再解释其必要性，最后给出追踪格式、指标、线上评估、告警和隐私等实践。
+
 #### 275. 什么是 AI 应用的 evaluation-driven development？
 **答：** 它是在开发前定义评测集和指标，用评估结果驱动 prompt、RAG、模型和系统迭代。AI 输出非确定且难以靠单元测试覆盖，因此评估必须成为开发循环的一部分。每次改动都应看回归指标。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在评估题中，要说明评估对象、数据集构造、指标选择、人工与自动评估结合、统计显著性和回归测试机制。
@@ -4140,6 +4175,17 @@
 - 如果把“AI 应用的 evaluation-driven developme...”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“AI 应用的 evaluation-driven developme...”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“评估与测试”中的质量度量层，决定系统改动是否真的变好以及风险是否可接受。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“人工一致性、自动评估相关性、置信区间、回归通过率、线上业务指标”验证答案，而不是只依赖主观感觉。
+
+#### 596. 为什么说 AI 的表现取决于我们对“完成”的定义？
+**答：** 给 AI 一个任务时包含两部分：目标（要做什么）和检查方式（如何判断做完、做对）。“完成的定义”就是目标加上一个检查器。检查器（验证器）是能对输出给出通过或不通过判断的东西，例如单元测试、编译器、类型检查、格式校验。AI 在拥有快速、精确检查器的任务上非常强，因为它可以自己执行“生成—检查—修复”的循环，直到检查通过；在没有检查器的任务上则不可靠，只能靠人逐字审查，人成了又慢又不稳定的检查器。差别往往不在模型的智能，而在于我们是否定义清楚了“完成”。
+**深入展开：** 实践意义：①先写测试或验收标准，再让 AI 实现（类似测试驱动开发），让 AI 能自我验证；②把模糊目标拆成可检查的子目标，例如“改进性能”改为“在该基准上 p95 延迟低于 200ms”；③对难以自动检查的部分（设计质量、文风），明确评审标准并保留人工审查；④警惕检查器的漏洞：测试覆盖不足时，AI 可能写出“通过测试但实际错误”的代码，甚至修改测试本身；⑤这一原则同样解释了为什么强化学习在数学、代码等可验证任务上进展最快。
+**后续追问：** 追问常见于：没有自动检查器的任务怎么办？检查器有漏洞会怎样？如何把模糊需求变成可检查的标准？
+**上游参考：** [AI Is Only as Good as Our Definition of Done](https://outcomeschool.com/blog/ai-is-only-as-good-as-our-definition-of-done)
+**扩展问题：**
+- 让 AI 写一个数据清洗脚本，你会如何定义“完成”？
+- 如何防止编程 agent 通过修改测试来让测试通过？
+- 写作类任务能否建立部分检查器？举例说明。
+**推理回答：** 先给出“完成的定义 = 目标 + 检查器”，解释为什么有检查器时 AI 可以自我纠错，再给出把需求转为可检查标准的实践和注意事项。
 
 #### 276. 如何评估 LLM 输出？用哪些指标？
 **答：** 指标包括正确性、事实性、相关性、完整性、格式合规、安全、风格、延迟和成本。可用规则、人工、LLM-as-judge 和任务特定指标结合。没有单一指标能覆盖所有质量维度。
@@ -4241,6 +4287,28 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“评估与测试”中的质量度量层，决定系统改动是否真的变好以及风险是否可接受。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“人工一致性、自动评估相关性、置信区间、回归通过率、线上业务指标”验证答案，而不是只依赖主观感觉。
 
+#### 597. 什么是基准污染（benchmark contamination）？如何防范？
+**答：** 基准污染是指评测题目（或其答案、改写版本）出现在了模型的训练数据中。由于预训练语料大量抓取网络数据，而很多基准的题目和答案公开在网上，模型可能“背过”答案，得分就会高估其真实能力，无法反映在新问题上的泛化表现。微调时混入了与测试集重叠的数据也会造成污染。
+**深入展开：** 检测方法：①n-gram 或子串重叠检测：检查训练语料与测试题的重合；②记忆探测：只给题目前半段，看模型能否逐字补全后半段或选项；③对比原题与改写或扰动版本（换数字、换说法、打乱选项顺序）的表现，如果原题明显更好，说明可能是记忆；④比较发布时间前后的题目表现。防范措施：①训练数据与评测集去重；②使用模型训练截止日期之后发布的新题（动态更新的基准）；③保留不公开的私有测试集；④自建业务评估集，不放到公开网络上；⑤报告评测结果时说明去污染处理。
+**后续追问：** 追问常见于：如何检测模型是否背过某个基准？为什么公开基准会逐渐失效？私有评估集如何管理？
+**上游参考：** [LLM Evaluation](https://outcomeschool.com/blog/llm-evaluation)
+**扩展问题：**
+- 一个新模型在某个数学基准上大幅领先，但在新出的同类题目上表现平平，你如何解读？
+- 你所在公司的内部评估集如何防止被污染？
+- 改写题目能完全消除污染的影响吗？为什么？
+**推理回答：** 先定义污染及其造成的高估问题，再给出检测方法，最后列出去重、新题、私有集等防范措施。
+
+#### 598. 新模型版本在每个基准上得分都更高，但用户却说它变差了。为什么会这样？如何找到问题？
+**答：** 可能原因：①基准与真实使用不匹配：基准测的是学术题目，用户的实际任务（特定领域、特定格式、长对话）没有被覆盖；②基准污染或对基准的过度优化，分数虚高；③行为变化：回答更长、更啰嗦、更爱拒绝、语气变化、格式改变（例如不再输出用户依赖的 JSON 格式），这些通常不在基准中体现；④提示敏感性：原有的提示词是针对旧模型调好的，新模型对同样的提示反应不同；⑤延迟或成本变化影响体验；⑥用户样本偏差：抱怨的是某一类用户或场景。
+**深入展开：** 排查方法：①收集具体的差评案例，按场景分类，找出共同模式；②用线上真实流量的样本做新旧模型的对比评估（盲测两两比较，人工加 LLM 评审），按细分类别看差异；③检查格式遵循率、拒答率、回答长度、工具调用成功率等行为指标；④检查提示与新模型的适配，必要时调整提示；⑤用 A/B 测试量化真实影响（任务完成率、留存、重试率）；⑥把发现的问题场景加入评估集，防止下次再犯。短期可以按场景回滚或路由到旧模型。
+**后续追问：** 追问常见于：如何建立贴近真实使用的评估集？哪些行为指标容易被基准忽视？如何决定是否回滚？
+**上游参考：** 上游第 383 题（上游未附链接）：Your new model version scores higher on every benchmark, but users say it got worse. Why does this happen, and how do you find the problem?
+**扩展问题：**
+- 用户反馈“新模型变笨了”，但没有具体例子，你如何开始调查？
+- 如何设计 A/B 实验来确认新模型是否真的变差？
+- 新模型在大多数场景更好，只在少数场景更差，你会如何处理？
+**推理回答：** 先列出基准与用户感受脱节的几类原因，再给出从收集案例、真实流量对比、行为指标、提示适配到 A/B 测试的排查流程，以及短期和长期对策。
+
 #### 286. 如何端到端评估 RAG 系统？
 **答：** 分别评估检索、重排、生成和引用，再评估最终用户答案。指标包括 recall@k、context precision、faithfulness、answer relevance、引用准确率、拒答和延迟。失败样本要能定位到 pipeline 哪一步。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在评估题中，要说明评估对象、数据集构造、指标选择、人工与自动评估结合、统计显著性和回归测试机制。
@@ -4260,6 +4328,17 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“评估与测试”中的质量度量层，决定系统改动是否真的变好以及风险是否可接受。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“人工一致性、自动评估相关性、置信区间、回归通过率、线上业务指标”验证答案，而不是只依赖主观感觉。
+
+#### 599. 如何评估自主编程 agent？为什么 SWE-bench 的通过率可能具有误导性？
+**答：** 评估编程 agent 通常使用真实仓库中的任务：给出问题描述（如 GitHub issue）和代码库，让 agent 修改代码，然后运行隐藏的测试判断是否解决。SWE-bench 就是这种方式，它从真实开源项目的 issue 和对应的修复 PR 中构造任务，用该 PR 添加的测试来验证。除通过率外，还应关注：成本（token 和时间）、步数、是否引入回归（原有测试是否仍然通过）、代码质量和可维护性、对仓库约定的遵守、是否做了不必要或危险的修改。
+**深入展开：** 通过率可能误导的原因：①测试不充分：补丁通过了给定测试但实际不正确或不完整；②数据污染：基准仓库和修复代码是公开的，可能出现在训练数据中；③任务描述问题：部分 issue 描述不清，或者测试依赖描述中没有提到的实现细节，导致结果有噪声（因此有经过人工筛选的子集）；④任务分布偏差：集中在少数 Python 项目，与你的代码库、语言和任务类型不同；⑤只看通过率忽略了成本、时间和多次尝试的差异；⑥脚手架（harness）对结果影响很大，比较的往往是“模型 + 脚手架”的组合。因此应在自己的代码库上构建内部评估，结合人工代码审查。
+**后续追问：** 追问常见于：SWE-bench 的任务是怎么构造的？如何构建内部的编程 agent 评估？除了通过率还看什么？
+**上游参考：** [AI Agent Evaluation](https://outcomeschool.com/blog/ai-agent-evaluation)
+**扩展问题：**
+- 你会如何从公司的历史工单和提交中构建一个内部评估集？
+- 一个 agent 的通过率很高，但每个任务花费 2 美元、30 分钟，你怎么看？
+- 如何检测 agent 的补丁“通过测试但实际错误”？
+**推理回答：** 先介绍基于真实 issue 和测试的评估方式及应关注的指标，再逐条说明 SWE-bench 通过率可能误导的原因，最后建议建立内部评估。
 
 #### 288. 离线评估和在线评估有何区别？
 **答：** 离线评估在固定数据集上可复现、成本低，适合开发；在线评估在真实流量上看业务指标和用户行为，适合验证实际价值。离线好不代表线上好，因为用户分布和反馈不同。上线前后都需要。
@@ -4300,6 +4379,17 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“评估与测试”中的质量度量层，决定系统改动是否真的变好以及风险是否可接受。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“人工一致性、自动评估相关性、置信区间、回归通过率、线上业务指标”验证答案，而不是只依赖主观感觉。
+
+#### 600. 没有标注的标准答案、领域专家又很贵时，如何构建评估集？
+**答：** 思路是把昂贵的专家时间用在最关键的地方，其余尽量自动化。①从真实使用中采样：从线上日志或用户需求中抽取有代表性的输入，覆盖主要场景和边界情况，不需要先有答案；②定义评分标准而不是标准答案：很多任务难以写出唯一正确答案，但可以写出检查项（必须包含哪些要点、不能出现哪些错误、格式要求），由专家花少量时间制定和审核标准；③利用可自动检查的属性：格式、引用是否存在于来源中、代码能否运行、数值是否一致；④用 LLM 生成候选：让强模型生成参考答案或测试问题，再由专家审核修改（审核比从零编写快得多）；⑤两两比较：让评审（人或 LLM）比较两个版本哪个更好，比打绝对分数更容易、更一致。
+**深入展开：** 质量保障：①用一个小规模的专家标注“金标准”子集来校准 LLM 评审，计算二者一致性；②主动挑选样本：把专家时间集中在模型之间分歧大或 LLM 评审不确定的样本上；③从失败中积累：每次线上故障或用户投诉都转成评估用例；④版本化管理评估集并逐步扩充；⑤注意 LLM 生成的问题可能偏向模型擅长的类型，需要人工补充困难样本。
+**后续追问：** 追问常见于：评分标准如何编写？如何验证 LLM 评审的可靠性？评估集需要多大？
+**上游参考：** 上游第 391 题（上游未附链接）：How do you build an eval set when there is no labelled ground truth and domain experts are expensive?
+**扩展问题：**
+- 为一个法律问答助手建立评估集，只有每周 2 小时的律师时间，你会如何安排？
+- 如何判断 LLM 生成的测试问题是否覆盖了真实用户的需求？
+- 评估集多大才能可靠地区分两个版本？如何估算？
+**推理回答：** 先说明核心策略（真实采样、评分标准代替答案、自动检查、LLM 生成加专家审核、两两比较），再讲用金标准校准和主动选择样本来保证质量。
 
 #### 292. 如何实现生产 AI 系统持续评估？
 **答：** 对线上样本抽样，结合自动评估、人工审核、用户反馈和业务指标。监控质量趋势、漂移、安全事件和成本异常。重要样本可回流到回归测试集。
@@ -5909,6 +5999,383 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“编码与实践实现”中的工程实现层，决定原型是否有清晰接口、边界处理、测试和可维护性。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“单测/集成测试通过率、错误处理覆盖、性能指标、可观测性、代码复杂度”验证答案，而不是只依赖主观感觉。
 
+#### 601. 从零实现带因果掩码的缩放点积注意力（NumPy 或 PyTorch）。
+**答：** 缩放点积注意力：Attention(Q, K, V) = softmax(QKᵀ / √d) V。除以 √d 是为了防止维度较大时点积数值过大，使 softmax 进入梯度很小的饱和区。因果掩码用于自回归模型：位置 i 只能看到位置 ≤ i 的 token，因此在 softmax 之前把上三角（未来位置）的分数设为负无穷，使其权重为 0。
+**深入展开：** NumPy 实现（单头，形状 (T, d)）：
+
+```python
+import numpy as np
+def causal_attention(Q, K, V):
+    # Q, K, V: (T, d)
+    d = Q.shape[-1]
+    scores = Q @ K.T / np.sqrt(d)                      # (T, T)
+    mask = np.triu(np.ones_like(scores, dtype=bool), k=1)
+    scores = np.where(mask, -np.inf, scores)           # 屏蔽未来位置
+    scores -= scores.max(axis=-1, keepdims=True)       # 数值稳定
+    w = np.exp(scores)
+    w /= w.sum(axis=-1, keepdims=True)
+    return w @ V
+```
+
+要点：①掩码必须在 softmax 之前加；②减去每行最大值保证数值稳定，不改变结果；③批量和多头版本只需在前面增加维度，矩阵乘改为批量矩阵乘；④实际框架中可以直接使用 PyTorch 的 `F.scaled_dot_product_attention(q, k, v, is_causal=True)`，它会调用 FlashAttention 等高效内核。
+**后续追问：** 追问常见于：为什么要除以 √d？为什么掩码用负无穷而不是 0？如何支持 padding 掩码？复杂度是多少？
+**上游参考：** [Math behind Attention - Q, K, and V](https://outcomeschool.com/blog/math-behind-attention-qkv)、[Causal Masking in Attention](https://outcomeschool.com/blog/causal-masking-in-attention)
+**扩展问题：**
+- 如果一行中所有位置都被掩码（例如全是 padding），softmax 会出现什么问题？如何处理？
+- 这个实现的时间和空间复杂度是多少？FlashAttention 如何降低显存占用？
+- 如何修改代码以支持查询长度和键长度不同的情况（例如解码时）？
+**推理回答：** 先写出公式并解释缩放和因果掩码的作用，再给出简洁实现，最后说明数值稳定性和工程中可用的高效实现。
+
+#### 602. 实现多头注意力，然后把它改造成分组查询注意力（GQA）。
+**答：** 多头注意力（MHA）把模型维度拆成 h 个头，每个头有自己的 Q、K、V 投影，各自计算注意力后拼接，再经过输出投影。GQA 让多个查询头共享同一组 K/V 头：K、V 的头数 n_kv 小于查询头数 h（h 能被 n_kv 整除），每个 KV 头被 h/n_kv 个查询头共享。n_kv = h 时就是 MHA，n_kv = 1 时就是多查询注意力（MQA）。
+**深入展开：** PyTorch 实现（同时覆盖 MHA 与 GQA）：
+
+```python
+import torch, torch.nn as nn, torch.nn.functional as F
+class GQA(nn.Module):
+    # n_kv_heads == n_heads 时就是普通多头注意力（MHA），== 1 时是 MQA
+    def __init__(self, d_model, n_heads, n_kv_heads):
+        super().__init__()
+        assert d_model % n_heads == 0 and n_heads % n_kv_heads == 0
+        self.h, self.kv, self.dh = n_heads, n_kv_heads, d_model // n_heads
+        self.q = nn.Linear(d_model, n_heads * self.dh, bias=False)
+        self.k = nn.Linear(d_model, n_kv_heads * self.dh, bias=False)
+        self.v = nn.Linear(d_model, n_kv_heads * self.dh, bias=False)
+        self.o = nn.Linear(n_heads * self.dh, d_model, bias=False)
+    def forward(self, x):                     # x: (B, T, d_model)
+        B, T, _ = x.shape
+        q = self.q(x).view(B, T, self.h, self.dh).transpose(1, 2)
+        k = self.k(x).view(B, T, self.kv, self.dh).transpose(1, 2)
+        v = self.v(x).view(B, T, self.kv, self.dh).transpose(1, 2)
+        rep = self.h // self.kv               # 每个 KV 头被 rep 个查询头共享
+        k = k.repeat_interleave(rep, dim=1)
+        v = v.repeat_interleave(rep, dim=1)
+        att = (q @ k.transpose(-2, -1)) / self.dh ** 0.5
+        mask = torch.triu(torch.ones(T, T, dtype=torch.bool, device=x.device), 1)
+        att = att.masked_fill(mask, float('-inf')).softmax(-1)
+        y = (att @ v).transpose(1, 2).reshape(B, T, -1)
+        return self.o(y)
+```
+
+改造要点：①K、V 的投影输出维度从 h × d_head 变为 n_kv × d_head；②计算前把 K、V 沿头维度重复 h/n_kv 次（实际高效实现会避免真正复制）。收益：推理时 KV cache 大小按 n_kv/h 比例缩小，decode 阶段读取的数据更少，速度更快、可支持更大批量和更长上下文；质量通常接近 MHA，明显优于 MQA。已有的 MHA 模型也可以通过把多个 KV 头平均合并后再少量继续训练的方式转成 GQA。
+**后续追问：** 追问常见于：GQA 为什么能减少 KV cache？与 MQA 相比有什么取舍？如何把已训练的 MHA 模型转换为 GQA？
+**上游参考：** [Multi-Head Attention in Transformers](https://outcomeschool.com/blog/multi-head-attention-in-transformers)、[Grouped Query Attention](https://outcomeschool.com/blog/grouped-query-attention)
+**扩展问题：**
+- h=32、n_kv=8 时，KV cache 相比 MHA 缩小多少？
+- repeat_interleave 会真的复制显存吗？高效实现如何避免？
+- GQA 对训练速度有影响吗？为什么主要收益在推理？
+**推理回答：** 先说明 MHA 的结构，再说明 GQA 只是减少 K/V 头数并在查询头间共享，给出一份同时支持两者的实现，最后讲 KV cache 收益与转换方法。
+
+#### 603. 为带因果掩码的多头注意力实现 KV cache 和单步解码。
+**答：** 自回归生成时，每生成一个新 token，之前所有 token 的 K、V 都不会改变。没有缓存时每一步都要对整个序列重新计算，计算量随长度平方增长。KV cache 把已计算的 K、V 保存下来：prefill 阶段一次性计算提示中所有 token 的 K、V 并缓存；decode 阶段每步只为新 token 计算 Q、K、V，把新的 K、V 追加到缓存，再用新 token 的 Q 与全部缓存的 K、V 做注意力。
+**深入展开：** PyTorch 实现：
+
+```python
+import torch, torch.nn as nn
+class CachedMHA(nn.Module):
+    def __init__(self, d_model, n_heads):
+        super().__init__()
+        self.h, self.dh = n_heads, d_model // n_heads
+        self.qkv = nn.Linear(d_model, 3 * d_model, bias=False)
+        self.o = nn.Linear(d_model, d_model, bias=False)
+    def forward(self, x, cache=None):
+        # x: (B, T, d)。prefill 时 T 为提示长度；decode 时 T == 1
+        B, T, _ = x.shape
+        q, k, v = self.qkv(x).view(B, T, 3, self.h, self.dh).permute(2, 0, 3, 1, 4)
+        if cache is not None:                  # 拼接历史 K/V
+            k = torch.cat([cache[0], k], dim=2)
+            v = torch.cat([cache[1], v], dim=2)
+        S = k.shape[2]                          # 总长度 = 历史 + 新 token
+        att = q @ k.transpose(-2, -1) / self.dh ** 0.5   # (B, h, T, S)
+        # 新 token i 位于绝对位置 S-T+i，只能看到 <= 该位置的 key
+        mask = torch.ones(T, S, dtype=torch.bool, device=x.device).triu(S - T + 1)
+        att = att.masked_fill(mask, float('-inf')).softmax(-1)
+        y = (att @ v).transpose(1, 2).reshape(B, T, -1)
+        return self.o(y), (k, v)
+```
+
+使用方式：先 `out, cache = attn(prompt)` 做 prefill，再循环 `out, cache = attn(x_new, cache)`，每次 x_new 的长度为 1。注意：①掩码要按绝对位置计算，单步解码时新 token 可以看到全部历史，因此不需要掩码；②可以用“逐步解码的输出与一次性完整前向的输出一致”来测试正确性；③生产实现会预分配缓存或使用分页 KV（如 vLLM），避免反复拼接带来的复制开销；④缓存大小 = 2 × 层数 × 头数 × 头维度 × 序列长度 × 批量 × 每元素字节数。
+**后续追问：** 追问常见于：KV cache 为什么只缓存 K 和 V 而不缓存 Q？缓存显存如何估算？如何测试实现正确？
+**上游参考：** [What is KV Cache in LLMs?](https://outcomeschool.com/blog/kv-cache-in-llms)
+**扩展问题：**
+- 为什么用 torch.cat 拼接缓存在长序列时效率较低？如何改进？
+- 批量中各序列长度不同时，KV cache 和掩码应如何处理？
+- 加入旋转位置编码（RoPE）后，缓存的 K 应该在旋转前还是旋转后保存？
+**推理回答：** 先解释为什么可以缓存 K、V 以及节省了什么计算，再给出 prefill 与单步 decode 共用的实现，最后说明测试方法和生产中的改进。
+
+#### 604. 从零实现 BPE（字节对编码）的训练和编码。
+**答：** BPE 训练从字符（或字节）级词表开始，反复统计语料中相邻符号对的出现频率，把频率最高的一对合并成新符号，加入合并规则表，直到达到目标词表大小或合并次数。编码时，把新词拆成字符，按训练时学到的合并规则的先后顺序依次应用，得到子词序列。这样常见词会成为单个 token，罕见词会被拆成更小的片段，不会出现未登录词。
+**深入展开：** Python 实现（以空格分词、`</w>` 标记词尾的经典版本）：
+
+```python
+from collections import Counter
+def get_pairs(words):                       # words: {tuple(symbols): count}
+    pairs = Counter()
+    for w, c in words.items():
+        for a, b in zip(w, w[1:]):
+            pairs[(a, b)] += c
+    return pairs
+def merge_word(w, pair):
+    out, i = [], 0
+    while i < len(w):
+        if i < len(w) - 1 and (w[i], w[i + 1]) == pair:
+            out.append(w[i] + w[i + 1]); i += 2
+        else:
+            out.append(w[i]); i += 1
+    return tuple(out)
+def train_bpe(text, num_merges):
+    words = Counter(tuple(w) + ('</w>',) for w in text.split())
+    merges = []
+    for _ in range(num_merges):
+        pairs = get_pairs(words)
+        if not pairs:
+            break
+        best = max(pairs, key=pairs.get)     # 频率最高的相邻符号对
+        merges.append(best)
+        words = Counter({merge_word(w, best): c for w, c in words.items()})
+    return merges
+def encode(word, merges):
+    w = tuple(word) + ('</w>',)
+    for pair in merges:                     # 按训练时学到的顺序依次合并
+        w = merge_word(w, pair)
+    return list(w)
+```
+
+说明：①训练时按词频统计，相同的词只处理一次；②编码必须按合并规则的学习顺序应用，才能与训练一致；③这里的 encode 逐条规则扫描，效率较低，实际实现会为规则建立优先级表，每次合并当前词中优先级最高的一对；④GPT-2 等模型使用字节级 BPE：从 256 个字节开始，任何文本都能编码，并先用正则表达式预切分文本，避免跨越单词和标点合并。
+**后续追问：** 追问常见于：字节级 BPE 与字符级 BPE 有什么区别？为什么编码要按合并顺序？词表大小如何影响模型？
+**上游参考：** [Byte Pair Encoding](https://outcomeschool.com/blog/bpe-in-llms)
+**扩展问题：**
+- 如何把这个实现的编码复杂度降下来？
+- 中文文本使用字节级 BPE 时，一个汉字通常会被编码成几个 token？为什么？
+- BPE 与 WordPiece、Unigram 分词有什么不同？
+**推理回答：** 先说明训练（反复合并最高频相邻对）和编码（按顺序应用规则）的原理，给出简洁实现，再补充效率优化和字节级 BPE 等工程细节。
+
+#### 605. 在一个 logits 向量上实现 top-k、top-p 和温度采样。
+**答：** 温度：把 logits 除以 T 后再做 softmax，T < 1 使分布更尖锐（更确定），T > 1 使分布更平坦（更随机），T → 0 相当于贪心选最大值。top-k：只保留概率最大的 k 个 token，其余概率置零后重新归一化。top-p（核采样）：按概率从大到小排序，保留累计概率刚好达到 p 的最小集合，其余置零后重新归一化；它能根据分布形状自适应地决定候选数量。
+**深入展开：** NumPy 实现（先温度，再 top-k，最后 top-p）：
+
+```python
+import numpy as np
+def sample(logits, temperature=1.0, top_k=0, top_p=1.0, rng=np.random.default_rng()):
+    logits = np.asarray(logits, dtype=np.float64)
+    if temperature == 0:                    # 贪心
+        return int(np.argmax(logits))
+    logits = logits / temperature
+    if top_k > 0:                           # 只保留最大的 k 个
+        kth = np.sort(logits)[-min(top_k, len(logits))]
+        logits = np.where(logits < kth, -np.inf, logits)
+    probs = np.exp(logits - logits.max())
+    probs /= probs.sum()
+    if top_p < 1.0:                         # 核采样：累计概率达到 p 的最小集合
+        order = np.argsort(-probs)
+        cum = np.cumsum(probs[order])
+        cutoff = np.searchsorted(cum, top_p) + 1
+        keep = np.zeros_like(probs, dtype=bool)
+        keep[order[:cutoff]] = True
+        probs = np.where(keep, probs, 0.0)
+        probs /= probs.sum()
+    return int(rng.choice(len(probs), p=probs))
+```
+
+要点：①softmax 前减去最大值保证数值稳定；②top-p 至少保留一个 token；③处理顺序会影响结果，常见实现是温度 → top-k → top-p；④批量版本在 PyTorch 中可以用 `torch.topk`、`torch.sort` 和 `torch.cumsum` 向量化实现，最后用 `torch.multinomial` 采样；⑤概率相同时 top-k 的边界处理方式（这里保留所有等于第 k 大值的 token）需要明确。
+**后续追问：** 追问常见于：温度为什么能控制随机性？top-k 和 top-p 的区别和各自的问题？为什么先做温度再做截断？
+**上游参考：** 上游第 541 题（上游未附链接）：Implement top-k, top-p, and temperature sampling over a logits vector.
+**扩展问题：**
+- 当模型非常确定（一个 token 概率 0.99）时，top-k=50 和 top-p=0.9 的行为有何不同？
+- 如何把这个函数改写成支持批量的 PyTorch 版本？
+- min-p 采样是什么？它解决了 top-p 的什么问题？
+**推理回答：** 先分别说明三种方法的含义和作用，再给出组合实现并标注顺序和边界情况，最后说明批量化实现方式。
+
+#### 606. 实现一个 get/put 均为 O(1) 的 LRU 缓存，然后为每个条目增加 TTL（过期时间）。
+**答：** LRU（最近最少使用）缓存需要在 O(1) 时间内查找、更新使用顺序和淘汰最久未使用的条目。经典做法是哈希表 + 双向链表：哈希表从键映射到链表节点，链表按使用时间排序，访问时把节点移到表尾，超出容量时删除表头。Python 的 `OrderedDict` 内部就是这种结构，提供 O(1) 的 `move_to_end` 和 `popitem(last=False)`。
+**深入展开：** 实现（支持全局默认 TTL 和单条 TTL，时钟可注入以便测试）：
+
+```python
+import time
+from collections import OrderedDict
+class LRUCache:
+    def __init__(self, capacity, ttl=None, clock=time.monotonic):
+        self.cap, self.ttl, self.clock = capacity, ttl, clock
+        self.d = OrderedDict()               # key -> (value, expire_at)
+    def get(self, key):
+        if key not in self.d:
+            return None
+        value, exp = self.d[key]
+        if exp is not None and self.clock() >= exp:   # 惰性过期
+            del self.d[key]
+            return None
+        self.d.move_to_end(key)              # 标记为最近使用
+        return value
+    def put(self, key, value, ttl=None):
+        ttl = ttl if ttl is not None else self.ttl
+        exp = self.clock() + ttl if ttl is not None else None
+        if key in self.d:
+            self.d.move_to_end(key)
+        self.d[key] = (value, exp)
+        if len(self.d) > self.cap:
+            self.d.popitem(last=False)       # 淘汰最久未使用
+```
+
+说明：①这里采用惰性过期：读取时才检查是否过期，实现简单，但已过期却未被访问的条目会一直占用容量直到被 LRU 淘汰；②如果需要及时释放，可以增加按过期时间排序的最小堆，或定期清理；③使用 `time.monotonic` 而不是系统时间，避免时钟调整造成的错误；④多线程使用时需要加锁；⑤面试中如果要求手写，可以自己实现双向链表（带哨兵头尾节点）加字典。
+**后续追问：** 追问常见于：为什么需要双向链表？惰性过期和主动过期如何取舍？如何做成线程安全的？
+**上游参考：** 上游第 542 题（上游未附链接）：Implement an LRU cache with O(1) get/put, then add per-entry TTL.
+**扩展问题：**
+- 不用 OrderedDict，手写双向链表版本，需要注意哪些指针操作？
+- 如何在 O(log n) 内主动清理过期条目？
+- 这个缓存用于缓存 LLM 回答时，键应该如何设计？
+**推理回答：** 先说明哈希表加双向链表实现 O(1) 的原理，再给出带 TTL 的实现，最后讨论过期策略、时钟选择和并发安全。
+
+#### 607. 为 LLM API 实现一个令牌桶限流器，其中成本与 token 数量成正比，然后把它做成分布式的。
+**答：** 令牌桶：桶的容量为 C，以速率 r 持续补充令牌；每个请求需要消耗与其成本相当的令牌，桶里令牌足够就放行并扣除，否则拒绝或排队。它允许一定程度的突发（最多 C），同时保证长期平均速率不超过 r。LLM API 的成本按 token 计，而请求的输出 token 数在请求开始前未知，所以通常先按“输入 token 数 + max_tokens”预扣，请求结束后按实际用量把多扣的部分退回。
+**深入展开：** 单机实现（按需计算补充量，不需要后台线程）：
+
+```python
+import time, threading
+class TokenBucket:
+    def __init__(self, rate, capacity, clock=time.monotonic):
+        self.rate, self.cap, self.clock = rate, capacity, clock   # rate: 每秒补充的 token 数
+        self.tokens, self.last = capacity, clock()
+        self.lock = threading.Lock()
+    def try_acquire(self, cost):
+        # cost = 预估输入 token + max_tokens；请求结束后可按实际用量退还差额
+        with self.lock:
+            now = self.clock()
+            self.tokens = min(self.cap, self.tokens + (now - self.last) * self.rate)
+            self.last = now
+            if self.tokens >= cost:
+                self.tokens -= cost
+                return True
+            return False
+    def refund(self, amount):
+        with self.lock:
+            self.tokens = min(self.cap, self.tokens + amount)
+```
+
+分布式版本：多个网关实例必须共享同一个桶的状态。常见做法是把桶状态（令牌数、上次更新时间）存在 Redis 中，用 Lua 脚本把“读取—补充—判断—扣减”作为一个原子操作执行，时间使用 Redis 服务器的时间以避免各实例时钟不一致；按用户或 API key 作为键并设置过期。性能优化：每个实例本地预取一小批令牌，用完再向中心申请，以减少对 Redis 的访问，代价是精度略有下降。还需考虑 Redis 不可用时的降级策略（放行或拒绝），以及向客户端返回 429 和 Retry-After。
+**后续追问：** 追问常见于：输出 token 数未知时如何扣费？为什么需要原子操作？分布式限流的时钟问题怎么解决？
+**上游参考：** 上游第 543 题（上游未附链接）：Implement a token-bucket rate limiter for an LLM API where cost scales with tokens, then make it distributed.
+**扩展问题：**
+- 一个请求的 max_tokens 设得很大但实际只用了很少，如何避免它不合理地占用配额？
+- Redis 故障时，你的限流器应该放行还是拒绝请求？
+- 如何同时实现每分钟请求数和每分钟 token 数两种限制？
+**推理回答：** 先解释令牌桶原理和 LLM 按 token 计费带来的预扣与退还问题，给出单机实现，再说明基于 Redis 加 Lua 原子脚本的分布式方案和优化。
+
+#### 608. 编写一个异步批处理程序：对 50,000 份文档调用 LLM，要求限制并发、带抖动的重试，并做到错误隔离。
+**答：** 关键要求：①限制并发：用信号量（semaphore）控制同时进行的请求数，避免触发服务端限流或耗尽连接；②重试：对可重试的错误（429、5xx、超时）使用指数退避加随机抖动，避免大量请求在同一时刻集中重试；③错误隔离：单个文档最终失败时记录错误并继续处理其他文档，不能让整个任务中断。
+**深入展开：** asyncio 实现：
+
+```python
+import asyncio, random
+async def process_all(docs, call_llm, concurrency=32, max_retries=5, base=0.5, cap=30.0):
+    sem = asyncio.Semaphore(concurrency)
+    async def one(i, doc):
+        async with sem:
+            for attempt in range(max_retries + 1):
+                try:
+                    return i, await call_llm(doc), None
+                except Exception as e:      # 实际中只重试可重试错误（429、5xx、超时）
+                    if attempt == max_retries:
+                        return i, None, repr(e)   # 错误隔离：记录失败，不影响其他文档
+                    # 指数退避 + 全抖动
+                    await asyncio.sleep(random.uniform(0, min(cap, base * 2 ** attempt)))
+    results, errors = [None] * len(docs), {}
+    for fut in asyncio.as_completed([one(i, d) for i, d in enumerate(docs)]):
+        i, res, err = await fut
+        if err is None:
+            results[i] = res
+        else:
+            errors[i] = err
+    return results, errors
+```
+
+生产中的补充：①不要一次性创建 5 万个协程任务也可以（内存一般可承受），但更稳妥的是用有界队列加固定数量的工作协程；②区分可重试和不可重试错误（如 400 参数错误直接失败）；③遵守服务端返回的 Retry-After；④同时配合按 token 的限流器；⑤断点续跑：把每个文档的结果和状态持久化，重新运行时跳过已完成的文档；⑥记录进度、成功率、失败原因分布和成本；⑦对失败列表单独重跑。如果供应商提供批处理 API（异步、价格更低），离线任务应优先考虑。
+**后续追问：** 追问常见于：为什么需要抖动？信号量和队列加工作协程有什么区别？任务中途崩溃如何恢复？
+**上游参考：** 上游第 544 题（上游未附链接）：Write an async batch processor that runs an LLM call over 50,000 documents with a concurrency limit, retries with jitter, and error isolation.
+**扩展问题：**
+- 服务端开始大量返回 429，你的程序应该如何自适应地降低并发？
+- 如何保证每份文档最多被处理一次（例如避免重复计费）？
+- 5 万份文档、每次调用平均 3 秒、并发 32，大约需要多长时间？
+**推理回答：** 先列出三个要求及对应的机制（信号量、指数退避加抖动、逐条捕获错误），给出实现，再补充可重试错误区分、断点续跑、监控和批处理 API 等生产要点。
+
+#### 609. 编写一个流式 SSE 解析器，用于解析 LLM 的 token 流，并能处理任意位置的分块边界。
+**答：** SSE（Server-Sent Events）是基于文本行的协议：每个事件由若干行组成，`data:` 行携带数据（一个事件可以有多行 data，需要用换行连接），以 `:` 开头的是注释或心跳，空行表示一个事件结束。LLM API 通常每个事件的 data 是一个 JSON，最后发送 `data: [DONE]`。难点在于网络分块是任意的：一个块可能只包含半行、半个 JSON，或者同时包含多个事件，所以必须先缓冲，只处理完整的行。
+**深入展开：** 实现（输入已解码的文本块，返回解析出的事件，`None` 表示结束）：
+
+```python
+import json
+class SSEParser:
+    def __init__(self):
+        self.buf, self.data = "", []
+    def feed(self, chunk: str):
+        """输入任意切分的文本块，返回已完整解析的事件列表。"""
+        self.buf += chunk
+        events = []
+        while True:
+            nl = self.buf.find("\n")
+            if nl < 0:
+                break                       # 行不完整，等待下一个块
+            line, self.buf = self.buf[:nl].rstrip("\r"), self.buf[nl + 1:]
+            if line == "":                  # 空行：一个事件结束
+                if self.data:
+                    payload = "\n".join(self.data)
+                    self.data = []
+                    if payload == "[DONE]":
+                        events.append(None)
+                    else:
+                        events.append(json.loads(payload))
+            elif line.startswith(":"):      # 注释/心跳
+                continue
+            elif line.startswith("data:"):
+                v = line[5:]
+                self.data.append(v[1:] if v.startswith(" ") else v)
+        return events
+```
+
+注意事项：①如果输入的是字节流，要用增量解码器（`codecs.getincrementaldecoder('utf-8')`）解码，否则多字节字符（如中文）可能在块边界被截断而出错；②兼容 `\r\n` 换行；③可以按需支持 `event:`、`id:` 字段；④测试时把同一份数据按 1、2、3……个字符等各种大小切分，验证结果一致；⑤对于工具调用的参数，模型是分片流式返回的，需要在应用层把片段拼接后再解析 JSON。
+**后续追问：** 追问常见于：为什么要缓冲？多字节字符如何处理？如何测试任意分块边界？
+**上游参考：** [How does Token Streaming work?](https://outcomeschool.com/blog/how-does-token-streaming-work)
+**扩展问题：**
+- 如果服务端在一个事件中途断开连接，解析器应该怎样处理残留数据？
+- 流式返回的工具调用参数如何增量拼接并判断何时完整？
+- 如何在解析的同时实时统计输出 token 数？
+**推理回答：** 先说明 SSE 的行和事件格式，指出任意分块带来的半行问题，给出基于缓冲的实现，再补充字节解码、换行兼容和测试方法。
+
+#### 610. 实现一个最小的 agent 循环，支持工具分发、错误处理和步数预算。
+**答：** agent 循环的核心：把对话发给模型 → 如果模型请求调用工具，就按名称分发到对应函数执行，把结果作为工具消息追加到对话中，再次调用模型 → 如果模型不再调用工具，它的回答就是最终答案。错误处理：未知工具、参数解析失败、工具执行异常，都不应让程序崩溃，而是把错误信息作为工具结果返回给模型，让它有机会修正。步数预算：限制最大循环次数，防止模型陷入无限循环，耗尽成本。
+**深入展开：** 实现（模型接口用一个函数抽象）：
+
+```python
+import json
+def run_agent(llm, tools, user_msg, max_steps=10):
+    # llm(messages) 返回 {"content": str, "tool_calls": [{"id", "name", "arguments"}]}
+    messages = [{"role": "user", "content": user_msg}]
+    for step in range(max_steps):
+        reply = llm(messages)
+        messages.append({"role": "assistant", **reply})
+        if not reply.get("tool_calls"):
+            return reply["content"]             # 没有工具调用 = 最终答案
+        for call in reply["tool_calls"]:
+            fn = tools.get(call["name"])
+            try:
+                if fn is None:
+                    raise KeyError(f"unknown tool {call['name']}")
+                result = fn(**json.loads(call["arguments"]))
+                content = json.dumps(result, ensure_ascii=False)
+            except Exception as e:              # 错误作为观察返回给模型，让它自行纠正
+                content = json.dumps({"error": repr(e)})
+            messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})
+    return "已达到步数上限，任务未完成。"
+```
+
+可以继续增强：①除步数外再加 token、成本和时间预算；②对工具结果做长度截断，避免撑爆上下文；③检测重复的相同工具调用（循环）并提示模型换个方法；④对有副作用的危险工具（删除、付款）增加人工确认；⑤工具执行设置超时，并可以并行执行相互独立的调用；⑥记录每一步的轨迹用于调试和评估；⑦达到预算时，可以让模型基于已有信息给出部分答案，而不是直接放弃。
+**后续追问：** 追问常见于：为什么把错误返回给模型而不是抛出？如何检测 agent 陷入循环？预算用尽时应该怎么办？
+**上游参考：** [AI Agent Loop](https://outcomeschool.com/blog/ai-agent-loop)
+**扩展问题：**
+- 如何为这个循环加入人工审批的环节，而不阻塞其他工具调用？
+- 模型连续三次用相同参数调用同一个失败的工具，你会如何处理？
+- 如何为这个 agent 循环编写单元测试，而不调用真实的模型？
+**推理回答：** 先描述“调用模型—分发工具—回传结果—直到无工具调用”的循环，说明错误回传和步数预算的作用，给出实现，最后列出生产中的增强点。
+
 ### 行为与场景题
 
 #### 418. 什么是 AI Engineering？它与 Machine Learning Engineering 有何不同？
@@ -6135,7 +6602,7 @@
 
 <!-- mapping:start（由脚本生成，请勿手改） -->
 
-上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 550/568；“待补”表示后续批次补齐。
+上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 568/568；“待补”表示后续批次补齐。
 
 | 上游题号 | 章节 | 本仓题号 | 上游题目 |
 |---:|---|---:|---|
@@ -6505,11 +6972,11 @@
 | 364 | LLMOps 与生产级 AI | 272 | Your AI pipeline has zero visibility into which step is failing. How do you add observability? |
 | 365 | LLMOps 与生产级 AI | 273 | You quantized your LLM, but accuracy dropped significantly. How do you minimize quantization loss? |
 | 366 | LLMOps 与生产级 AI | 274 | One failing AI component can take down your entire platform. How do you design graceful degradation? |
-| 367 | 评估与测试 | 待补 | AI Agent Evaluation |
-| 368 | 评估与测试 | 待补 | LLM Evaluation |
-| 369 | 评估与测试 | 待补 | AI Agent Observability |
+| 367 | 评估与测试 | 593 | AI Agent Evaluation |
+| 368 | 评估与测试 | 594 | LLM Evaluation |
+| 369 | 评估与测试 | 595 | AI Agent Observability |
 | 370 | 评估与测试 | 275 | What is evaluation-driven development for AI applications? |
-| 371 | 评估与测试 | 待补 | Why is AI only as good as our definition of done? |
+| 371 | 评估与测试 | 596 | Why is AI only as good as our definition of done? |
 | 372 | 评估与测试 | 276 | How do you evaluate LLM outputs? What metrics do you use? |
 | 373 | 评估与测试 | 277 | Explain BLEU, ROUGE, and BERTScore. When would you use each? |
 | 374 | 评估与测试 | 278 | What is G-Eval, and how does it use LLMs for evaluation? |
@@ -6520,16 +6987,16 @@
 | 379 | 评估与测试 | 283 | What is adversarial testing for AI systems? |
 | 380 | 评估与测试 | 284 | How do you build a regression test suite for AI applications? |
 | 381 | 评估与测试 | 285 | What are benchmark suites (MMLU, HumanEval, GSM8K), and how do you interpret them? |
-| 382 | 评估与测试 | 待补 | What is benchmark contamination, and how do you guard against it? |
-| 383 | 评估与测试 | 待补 | Your new model version scores higher on every benchmark, but users say it got worse. Why does this happen, and how do you find the problem? |
+| 382 | 评估与测试 | 597 | What is benchmark contamination, and how do you guard against it? |
+| 383 | 评估与测试 | 598 | Your new model version scores higher on every benchmark, but users say it got worse. Why does this happen, and how do you find the problem? |
 | 384 | 评估与测试 | 286 | How do you evaluate a RAG system end-to-end? |
 | 385 | 评估与测试 | 287 | How do you evaluate the quality of AI agents? |
-| 386 | 评估与测试 | 待补 | How would you evaluate an autonomous coding agent? Why can SWE-bench pass rates be misleading? |
+| 386 | 评估与测试 | 599 | How would you evaluate an autonomous coding agent? Why can SWE-bench pass rates be misleading? |
 | 387 | 评估与测试 | 288 | What is the difference between offline and online evaluation for AI systems? |
 | 388 | 评估与测试 | 289 | How do you measure factual consistency in LLM outputs? |
 | 389 | 评估与测试 | 290 | How do you evaluate multi-turn conversation quality? |
 | 390 | 评估与测试 | 291 | What is the role of golden datasets in AI evaluation? |
-| 391 | 评估与测试 | 待补 | How do you build an eval set when there is no labelled ground truth and domain experts are expensive? |
+| 391 | 评估与测试 | 600 | How do you build an eval set when there is no labelled ground truth and domain experts are expensive? |
 | 392 | 评估与测试 | 292 | How do you implement continuous evaluation for production AI systems? |
 | 393 | 评估与测试 | 293 | How do you evaluate bias in AI model outputs? |
 | 394 | 评估与测试 | 294 | How do you compare two models or prompts in a statistically rigorous way? |
@@ -6675,16 +7142,16 @@
 | 534 | 编码与实践实现 | 415 | Write code to detect prompt injection attempts in user inputs. |
 | 535 | 编码与实践实现 | 416 | Implement an LLM output guardrails system that checks for off-topic responses and PII leakage. |
 | 536 | 编码与实践实现 | 417 | Build a multi-agent system where agents have different roles and collaborate on a task. |
-| 537 | 编码与实践实现 | 待补 | Implement scaled dot-product attention with a causal mask from scratch (NumPy or PyTorch). |
-| 538 | 编码与实践实现 | 待补 | Implement multi-head attention, then convert it to grouped-query attention. |
-| 539 | 编码与实践实现 | 待补 | Implement a KV cache and single-step decode for causal multi-head attention. |
-| 540 | 编码与实践实现 | 待补 | Implement BPE (Byte Pair Encoding) training and encoding from scratch. |
-| 541 | 编码与实践实现 | 待补 | Implement top-k, top-p, and temperature sampling over a logits vector. |
-| 542 | 编码与实践实现 | 待补 | Implement an LRU cache with O(1) get/put, then add per-entry TTL. |
-| 543 | 编码与实践实现 | 待补 | Implement a token-bucket rate limiter for an LLM API where cost scales with tokens, then make it distributed. |
-| 544 | 编码与实践实现 | 待补 | Write an async batch processor that runs an LLM call over 50,000 documents with a concurrency limit, retries with jitter, and error isolation. |
-| 545 | 编码与实践实现 | 待补 | Write a streaming SSE parser for LLM token streams that handles arbitrary chunk boundaries. |
-| 546 | 编码与实践实现 | 待补 | Implement a minimal agent loop with tool dispatch, error handling, and a step budget. |
+| 537 | 编码与实践实现 | 601 | Implement scaled dot-product attention with a causal mask from scratch (NumPy or PyTorch). |
+| 538 | 编码与实践实现 | 602 | Implement multi-head attention, then convert it to grouped-query attention. |
+| 539 | 编码与实践实现 | 603 | Implement a KV cache and single-step decode for causal multi-head attention. |
+| 540 | 编码与实践实现 | 604 | Implement BPE (Byte Pair Encoding) training and encoding from scratch. |
+| 541 | 编码与实践实现 | 605 | Implement top-k, top-p, and temperature sampling over a logits vector. |
+| 542 | 编码与实践实现 | 606 | Implement an LRU cache with O(1) get/put, then add per-entry TTL. |
+| 543 | 编码与实践实现 | 607 | Implement a token-bucket rate limiter for an LLM API where cost scales with tokens, then make it distributed. |
+| 544 | 编码与实践实现 | 608 | Write an async batch processor that runs an LLM call over 50,000 documents with a concurrency limit, retries with jitter, and error isolation. |
+| 545 | 编码与实践实现 | 609 | Write a streaming SSE parser for LLM token streams that handles arbitrary chunk boundaries. |
+| 546 | 编码与实践实现 | 610 | Implement a minimal agent loop with tool dispatch, error handling, and a step budget. |
 | 547 | 行为与场景题 | 418 | What is AI Engineering, and how does it differ from Machine Learning Engineering? |
 | 548 | 行为与场景题 | 419 | How do you decide whether a problem needs AI or a traditional software solution? |
 | 549 | 行为与场景题 | 420 | How do you measure the ROI of an AI feature? |
