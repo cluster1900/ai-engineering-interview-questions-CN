@@ -48,6 +48,8 @@
 > 2026-10-24 增补：同步上游 2026-10-22～10-23 的 README 更新，并补齐多模态 AI 一章此前缺失的上游题目。新增 480–485 题按上游顺序插入“多模态 AI”章节（480 位于 348 之后，481–485 位于 353 之后），已有题号不变；352 题补充流式 TTS 内容。协议细节注明版本；工程建议需按目标模型、服务版本和业务负载验证。
 >
 > 2026-10-24 增补（第 2 批）：对照上游全部 568 题，新增 486–514 题（LLM 基础章节缺失的 29 题），按上游顺序插入对应位置，已有题号不变。文末新增[题号对照表](#题号对照表)，列出本仓题号与上游题号的对应关系；其余未覆盖的上游题标注“待补”，后续批次补齐。
+>
+> 2026-10-24 增补（第 3 批）：新增 515–534 题（AI Agent 与智能体系统章节缺失的 20 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 
 每个问题都按五层组织：
 
@@ -1685,6 +1687,17 @@
 - 应该用哪些实验、指标或日志证明对“AI 中的 Harness Engineering”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
 
+#### 515. 对 Claude Code 这类 agentic 编程工具来说，更重要的是模型还是 harness？
+**答：** 两者缺一不可，但在模型能力达到一定门槛之后，差异往往由 harness 决定。harness 是包在模型外面的控制层：管理输入输出、工具、记忆、错误处理和评估。编程 agent 的 harness 负责读写文件、执行命令、组织上下文（读哪些文件、何时压缩）、权限与审批、循环何时停止、如何验证（跑测试、lint）。好模型配差 harness 会体验很差；中等模型配好 harness 常常能完成任务。
+**深入展开：** 可以从失败归因来看：编程 agent 的很多失败并不是“不会写代码”，而是上下文里缺了关键文件、工具输出被截断、反复执行同一错误命令、没有跑测试就宣布完成——这些都是 harness 层的问题。反过来，推理深度、长上下文利用率、工具调用格式的稳定性是模型层的上限。同一模型换不同 harness、同一 harness 换不同模型做对照评估，才能回答“该投资哪一层”。
+**后续追问：** 追问常见于：harness 包含哪些组件？如何设计对照实验区分模型与 harness 的贡献？上下文压缩、子 agent 属于哪一层？
+**上游参考：** [Harness Engineering in AI](https://outcomeschool.com/blog/harness-engineering-in-ai)、[How does Claude Code work?](https://outcomeschool.com/blog/how-does-claude-code-work)
+**扩展问题：**
+- 如果只能改进 harness 的一个部分来提升编程 agent 的成功率，你会选哪一个？为什么？
+- 如何为编程 agent 设计一个能区分模型能力与 harness 缺陷的评估集？
+- 模型升级后，harness 中哪些“补丁式”设计可能需要删除？
+**推理回答：** 先定义 harness，再说明二者的分工：模型决定能力上限，harness 决定能力能否稳定发挥；最后用对照评估说明如何在实际中判断。
+
 #### 122. 解释 ReAct Agent 架构。
 **答：** ReAct Agent 在每轮循环中根据任务和观察决定下一步动作，例如搜索、调用 API、运行代码或结束回答。其结构通常包括 LLM 决策器、工具注册表、执行器、观察结果、状态存储和停止条件。生产系统应限制可见工具、参数 schema、最大步数和敏感动作。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 Agent 题中，要强调它是带状态和动作的闭环系统，必须覆盖工具 schema、权限、循环停止条件、错误恢复、预算控制和审计。
@@ -1715,6 +1728,17 @@
 - 应该用哪些实验、指标或日志证明对“LLM 中的工具使用或 function calling 是什么”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
 
+#### 516. 结构化输出（structured output）和函数调用（function calling）有什么区别？
+**答：** 两者都让模型输出符合 schema 的 JSON，但目的不同。结构化输出：模型的最终回答本身就是给定格式的数据（例如从文本中抽取字段），由应用直接消费，没有“调用”这一步。函数调用：模型从一组工具定义中决定是否调用、调用哪个、传什么参数；应用执行函数后把结果再交还给模型，模型据此继续推理或回答。也就是说，函数调用是一个多轮循环，结构化输出是一次性的格式约束。
+**深入展开：** 实现上，函数调用通常也依赖受约束解码或微调来保证参数合法，所以可以看作“带选择和回传的结构化输出”。区别要点：①函数调用里模型可以选择不调用，直接用文本回答；②可以并行或连续调用多个函数；③执行由应用完成，模型从不真正执行代码；④结构化输出更适合抽取、分类、生成配置等单步任务。
+**后续追问：** 追问常见于：怎么保证输出一定符合 schema？函数调用的结果如何回传？参数校验失败怎么办？
+**上游参考：** [How does Function Calling work in LLMs?](https://outcomeschool.com/blog/how-does-function-calling-work-in-llms)
+**扩展问题：**
+- 什么场景下你会用结构化输出而不是函数调用来实现“工具”？
+- 受约束解码（constrained decoding）如何保证 JSON 合法？代价是什么？
+- 模型生成了不存在的函数名或非法参数，harness 应如何处理？
+**推理回答：** 抓住“输出即结果”与“输出是调用请求、结果要回传”的区别，再补充二者在实现上的共性和各自适用场景。
+
 #### 125. 如何为 AI Agent 设计和定义工具？
 **答：** 工具应职责单一、命名清晰、参数 schema 严格、错误信息可理解，并明确权限和副作用。高风险工具要加入确认、限流、幂等和审计。工具描述要说明何时使用、何时不使用，避免多个工具语义重叠导致选择错误。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在 Agent 题中，要强调它是带状态和动作的闭环系统，必须覆盖工具 schema、权限、循环停止条件、错误恢复、预算控制和审计。
@@ -1724,6 +1748,16 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
+
+#### 517. agent 如何决定是调用工具还是直接用自身知识回答？
+**答：** 本质上是模型根据提示、工具描述和对话上下文做出的判断，可以通过系统设计加以引导：①工具描述写清楚“何时使用/何时不用”；②在系统提示中给出策略，例如涉及实时信息、私有数据、精确计算或需要执行动作时必须调用工具，常识性问题直接回答；③通过 tool_choice 等参数强制或禁止调用；④用微调或少样本示例教模型何时调用。
+**深入展开：** 可以把它看作成本收益的权衡：调用工具带来延迟、费用和失败风险，但能降低幻觉、获得最新或私有信息。常见失败：过度调用（简单问题也搜索）、调用不足（凭记忆回答过时的事实）。评估时要构造正例和反例，衡量调用的精确率与召回率，并检查答案正确性。也可以让模型先判断自己的置信度，或者在答案后做核验步骤。
+**后续追问：** 追问常见于：如何减少不必要的工具调用？如何度量“该调未调”？模型知识截止日期如何影响这一决策？
+**扩展问题：**
+- 怎样设计一个评估集来衡量 agent 的工具调用决策质量？
+- 当工具不可用或超时，agent 应该退回到自身知识还是明确告知用户？
+- 工具描述的措辞如何影响调用频率？举例说明。
+**推理回答：** 从“模型判断 + 系统引导”两方面回答，列出应调用工具的典型信号，再讨论过度/不足调用的权衡与评估方法。
 
 #### 126. 单 Agent 与多 Agent 系统有何区别？
 **答：** 单 Agent 由一个决策中心完成任务，简单可控；多 Agent 把任务分配给多个角色或专家协作，适合复杂、多视角或可并行问题。多 Agent 的难点是通信协议、冲突解决、成本控制和责任归因。不要为了架构新潮而使用多 Agent。
@@ -1735,6 +1769,17 @@
 - 应该用哪些实验、指标或日志证明对“单 Agent 与多 Agent 系统有何区别”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
 
+#### 518. 多 agent 系统在什么情况下会失效？什么时候单 agent 才是更好的选择？
+**答：** 多 agent 的失效通常来自协调成本：agent 之间信息传递有损、上下文不共享导致重复或矛盾的工作、错误在 agent 之间传递放大、出现循环对话或互相等待、成本和延迟成倍增长、调试和归因困难。单 agent 更合适的情况：任务步骤强耦合、需要一致的全局上下文（例如修改一份代码库中相互依赖的部分）、任务规模不大、对延迟和成本敏感。
+**深入展开：** 多 agent 适合的场景是任务可以清晰拆分成相对独立的子任务（如并行检索不同来源）、需要隔离上下文以避免单个窗口过载、或需要不同权限/角色分离（如执行者与评审者）。经验法则：先用单 agent 加好的工具和上下文管理做到极限，只有在明确遇到上下文容量、并行度或角色隔离的瓶颈时再拆分，并为每次拆分定义清晰的输入输出契约。
+**后续追问：** 追问常见于：如何判断任务是否可并行拆分？多 agent 的错误如何定位？子 agent 和多 agent 有什么区别？
+**上游参考：** [Multi-Agent Systems](https://outcomeschool.com/blog/multi-agent-systems)
+**扩展问题：**
+- 给出一个你会从多 agent 改回单 agent 的具体案例，并说明理由。
+- 多 agent 系统中如何防止错误在 agent 之间级联？
+- 如何量化多 agent 架构带来的额外成本与收益？
+**推理回答：** 先列举多 agent 的典型失效原因，再给出单 agent 更优的条件，最后给出“先单后多、按瓶颈拆分”的决策原则。
+
 #### 127. 什么是 MCP？它如何标准化工具集成？
 **答：** MCP 是一种模型上下文协议，目标是用统一方式暴露工具、资源和提示，使模型客户端能连接不同数据源和执行环境。它降低每个工具都单独适配的成本。即便使用 MCP，权限、审计和网络隔离仍需由部署环境保证。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 Agent 题中，要强调它是带状态和动作的闭环系统，必须覆盖工具 schema、权限、循环停止条件、错误恢复、预算控制和审计。
@@ -1744,6 +1789,28 @@
 - 如果把“MCP”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“MCP”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
+
+#### 519. MCP 与传统的函数调用有什么不同？
+**答：** 函数调用是模型层面的能力：开发者在每次请求里写死工具定义，并在自己的应用代码里实现和执行这些函数，工具与某个应用、某家 API 的格式绑定。MCP（Model Context Protocol）是一个开放协议，规定了 AI 应用（host/client）与外部能力提供方（server）之间如何通信：server 暴露工具、资源和提示词，client 动态发现并调用。工具实现一次，就能被任何支持 MCP 的应用复用。
+**深入展开：** 二者并不冲突：MCP client 拿到 server 列出的工具后，通常还是通过模型的函数调用能力让模型选择和传参，再把调用转发给 MCP server 执行。MCP 解决的是集成的“N×M 问题”——N 个应用 × M 个工具不再需要各自适配。它还带来动态发现、标准化的传输（stdio、HTTP）和权限边界；同时也引入新的风险，例如不可信 server 的工具描述可能包含提示注入。
+**后续追问：** 追问常见于：MCP 的 tools、resources、prompts 有什么区别？MCP server 如何认证授权？有了 MCP 还需要函数调用吗？
+**上游参考：** [What is MCP (Model Context Protocol)?](https://outcomeschool.com/blog/what-is-mcp-model-context-protocol)、[How does Function Calling work in LLMs?](https://outcomeschool.com/blog/how-does-function-calling-work-in-llms)
+**扩展问题：**
+- 如果要把公司内部的一个 API 提供给多个 AI 应用使用，你会选择 MCP 还是直接写函数调用？为什么？
+- MCP 带来了哪些新的安全风险？如何缓解？
+- MCP 与 Agent Skills 在职责上如何分工？
+**推理回答：** 先分别定义函数调用（模型能力、按应用写死）和 MCP（标准化的连接协议），再说明二者如何配合，以及 MCP 解决的集成问题与新增风险。
+
+#### 520. 什么是 AI 子 agent（SubAgent）？
+**答：** 子 agent 是由主 agent 派生出来、负责完成某个子任务的 agent。主 agent 把任务描述交给子 agent，子 agent 在自己独立的上下文窗口中工作（可以有自己的提示词、工具集和权限），完成后只把精简的结果返回给主 agent。这样主 agent 的上下文不会被大量中间过程（搜索结果、文件内容、日志）挤满。
+**深入展开：** 子 agent 的主要好处：①上下文隔离，保持主 agent 上下文干净；②可以并行执行多个相互独立的子任务；③专门化，不同子 agent 配不同的提示与工具；④限制权限，例如只读的探索子 agent。代价：子 agent 看不到主 agent 的完整上下文，任务描述必须写清楚；结果摘要可能丢失细节；整体 token 消耗增加。
+**后续追问：** 追问常见于：子 agent 和多 agent 系统有什么区别？主 agent 应该给子 agent 多少上下文？子 agent 的结果如何验证？
+**上游参考：** [AI SubAgents](https://outcomeschool.com/blog/ai-subagents)
+**扩展问题：**
+- 设计一个代码库探索子 agent：它需要哪些工具、返回什么格式的结果？
+- 子 agent 返回的摘要丢失了关键细节，如何在设计上避免？
+- 什么情况下不应该使用子 agent？
+**推理回答：** 先定义子 agent 及其与主 agent 的关系，突出“独立上下文、只返回结果”这一核心，再讨论好处、代价和使用时机。
 
 #### 128. Agent 记忆有哪些类型？
 **答：** 短期记忆保存当前任务和最近对话；长期记忆保存跨会话偏好、事实和历史；情景记忆保存过去任务的过程与结果。还可区分语义记忆、程序记忆和工作记忆。不同记忆应有不同的保留期限、写入规则和检索策略。
@@ -1775,6 +1842,72 @@
 - 应该用哪些实验、指标或日志证明对“Agent loop”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
 
+#### 521. 什么是上下文工程（Context Engineering）？
+**答：** 上下文工程是设计和管理“每次调用时模型能看到什么”的实践：在有限的上下文窗口里，放进完成当前步骤所需的、恰当的信息，并去掉无关信息。内容包括系统提示、工具定义、检索到的文档、对话历史、记忆、工具调用结果，以及它们的组织顺序和格式。提示词工程关注“怎么写指令”，上下文工程关注“整个输入窗口如何构建”。
+**深入展开：** 在 agent 中尤其重要，因为多轮工具调用会让上下文不断膨胀，导致成本上升、注意力被稀释、关键信息被“淹没”。常用手段：按需检索（RAG、按需读文件）、对历史做压缩和摘要、把长期信息写到外部记忆再按需取回、用子 agent 隔离上下文、裁剪冗长的工具输出、把稳定内容放在前缀以利用缓存。
+**后续追问：** 追问常见于：上下文工程与提示词工程有何区别？上下文过长有哪些具体问题？如何评估上下文策略的效果？
+**上游参考：** [Context Engineering](https://outcomeschool.com/blog/context-engineering)
+**扩展问题：**
+- 给一个长时间运行的编程 agent 设计上下文管理策略，你会包含哪些机制？
+- “上下文腐化”（context rot）指什么？如何检测？
+- 提示缓存（prompt caching）如何影响上下文的组织方式？
+**推理回答：** 给出定义并与提示词工程区分，再说明在 agent 中为何关键，列出主要技术手段。
+
+#### 522. 上下文压缩（context compaction）是如何工作的？
+**答：** 当对话或 agent 运行的上下文接近窗口上限（或达到设定阈值）时，系统把较早的内容压缩成更短的形式，再用“压缩后的摘要 + 最近的消息”继续工作。典型做法是让模型对历史生成结构化摘要：当前目标、已做的决定、已完成和未完成的步骤、关键文件或数据、未解决的问题；然后丢弃原始的旧消息。
+**深入展开：** 设计要点：①触发时机（按 token 阈值或任务阶段）；②保留什么——用户的原始要求、约束和最近几轮通常原样保留；③清理什么——旧的工具输出最适合先删或替换为简短说明；④摘要质量直接决定后续表现，丢失关键约束会导致 agent 漂移；⑤可以把完整历史写到外部文件，需要时再读取。压缩是有损的，需要用长任务评估来检验压缩后是否还能正确继续。
+**后续追问：** 追问常见于：压缩会丢失哪些信息？如何评估压缩质量？压缩与外部记忆有什么区别？
+**上游参考：** [How does context compaction work?](https://outcomeschool.com/blog/how-does-context-compaction-work)
+**扩展问题：**
+- 如何设计压缩摘要的模板，使 agent 压缩后不偏离原始目标？
+- 压缩多次之后误差会累积吗？如何缓解？
+- 只清理旧工具输出与整体摘要相比，各有什么优缺点？
+**推理回答：** 按“何时触发 → 保留什么 → 如何摘要 → 如何继续”的流程讲解，并指出其有损性和验证方法。
+
+#### 523. 什么是循环工程（Loop Engineering）？
+**答：** 循环工程是设计 agent 所运行的重复循环的实践，目标是让 agent 在任务上持续取得真实进展，并在正确的时刻带着正确的结果停下来。现代 agent 不是一次作答，而是“思考 → 行动 → 观察结果 → 再思考”不断循环。循环决定模型能尝试多少次、每次看到什么、允许做什么、何时必须停止。强模型放在设计糟糕的循环里仍会失败，普通模型放在设计良好的循环里往往能完成任务。
+**深入展开：** 需要工程化的部分包括：停止条件（成功判定、步数/预算上限）、每轮的上下文内容、可用工具与权限、进度检测（是否在原地打转）、错误处理与重试、验证步骤。常见故障：死循环、重复同一失败动作、忘记已做过的事、过早宣布完成、永不收敛。与提示词工程（写指令）和上下文工程（构建输入）相比，循环工程关注的是多次迭代的整体控制。
+**后续追问：** 追问常见于：如何检测 agent 陷入循环？停止条件怎么设计？循环工程与上下文工程的关系？
+**上游参考：** [Loop Engineering](https://outcomeschool.com/blog/what-is-loop-engineering)
+**扩展问题：**
+- 为一个修复失败测试的 agent 设计循环：每轮做什么、何时停止？
+- 如何识别 agent 在“看似忙碌但没有进展”？
+- 步数上限设得太小或太大分别有什么后果？
+**推理回答：** 先给出定义和“思考-行动-观察”循环，再列出需要控制的部件与常见故障，并与提示词/上下文工程区分。
+
+#### 524. 什么是图工程（Graph Engineering）？
+**答：** 图工程是把 AI 系统设计成一张图的实践：工作中的每一步是一个节点，步骤之间的路径是边。不是写一个巨大的提示词寄希望于模型一次完成，也不是让一个循环无限运行，而是把工作拆成小步骤，并明确规定哪一步之后执行哪一步。状态（state）在图中流动，每个节点读取并更新状态。
+**深入展开：** 关键构件：①节点（调用模型、调用工具或普通代码）；②边，包括条件边（根据状态决定下一步）；③环，允许在需要时重做（如校验失败后返回修改）；④并行分支以节省时间；⑤检查点，可暂停和恢复；⑥人工介入节点，用于审批。适合流程较明确、需要可控性和可审计性的任务；当任务高度开放、步骤无法预先规划时，图会变得僵硬，此时更适合自由的 agent 循环。LangGraph 是这一思路的代表框架。
+**后续追问：** 追问常见于：图工程与循环工程有何区别？状态应该如何设计？什么时候图会变得过于复杂？
+**上游参考：** [Graph Engineering](https://outcomeschool.com/blog/what-is-graph-engineering)
+**扩展问题：**
+- 把一个“检索 → 起草 → 校验 → 人工审批 → 发送”的流程设计成图，标出条件边和检查点。
+- 图工程中如何处理节点失败与重试？
+- 开放式任务为什么不适合预先定义的图？
+**推理回答：** 给出“节点 + 边 + 状态”的定义，说明条件边、环、并行、检查点、人工介入等构件，再对比循环工程讨论适用边界。
+
+#### 525. AI agent 之间如何通信？
+**答：** agent 之间通过发送消息来共享信息、请求帮助和协作完成任务。主要方式有：①直接通信，一个 agent 点对点发给另一个；②集中式通信，由一个中心协调者（orchestrator）分派任务并汇总结果；③广播，一个 agent 把消息发给所有 agent；④共享内存，agent 通过共同读写的存储（黑板、共享状态）交换信息。消息通常包含发送者、接收者、类型（请求、结果、错误等）和内容，常用结构化格式（如 JSON）。
+**深入展开：** 为了让不同系统的 agent 能互通，出现了协议层的标准，例如 Google 提出的 A2A（Agent2Agent）协议，规定 agent 如何发现彼此能力、交换任务和结果。通信中的挑战：信息在传递中丢失或被误解、消息过多导致成本上升、循环对话、不可信 agent 发来的内容带来注入风险。最佳实践：定义清晰的消息契约、只传必要的信息、为每类消息做校验、记录消息日志以便调试。
+**后续追问：** 追问常见于：集中式与去中心化各有什么优缺点？A2A 与 MCP 有什么区别？如何防止 agent 之间无限对话？
+**上游参考：** [How AI Agents Communicate](https://outcomeschool.com/blog/how-ai-agents-communicate)
+**扩展问题：**
+- 设计一个旅行规划系统中各 agent 的消息格式与通信拓扑。
+- 共享内存通信中如何避免读写冲突？
+- 来自其他 agent 的消息是否应当被视为可信输入？为什么？
+**推理回答：** 列出四种通信方式并说明消息结构，再提及协议标准（如 A2A）、挑战与最佳实践。
+
+#### 526. 什么是 Agent Skills？
+**答：** Agent Skills 是把某项任务的“做法”打包给 agent 使用的方式：一个技能通常是一个文件夹，核心是一个说明文件（如 SKILL.md，带名称和描述的元数据），可附带脚本、模板和参考资料。agent 平时只看到技能的名称和简短描述；当任务匹配时才加载完整说明，必要时再读取附带文件或执行脚本。这种按需加载（渐进式披露）让 agent 能拥有大量技能而不占满上下文。
+**深入展开：** 技能与工具的区别：工具（如函数调用、MCP）提供“能做什么”的能力入口；技能提供“怎么做”的流程知识，例如公司的报告格式、某个库的正确用法、部署步骤。技能是纯文件，易于版本管理和共享。设计要点：描述要写清楚触发条件；说明要聚焦步骤与易错点；把确定性操作写成脚本而不是让模型临场发挥；注意来源可信，避免恶意技能。
+**后续追问：** 追问常见于：技能与 MCP 有何区别？渐进式披露如何节省上下文？如何评估一个技能是否有效？
+**上游参考：** [What are Agent Skills?](https://outcomeschool.com/blog/what-are-agent-skills)
+**扩展问题：**
+- 为“生成公司季度报告”写一个技能，目录里应包含哪些文件？
+- 技能描述写得太宽泛或太窄分别会造成什么问题？
+- 如何防止第三方技能带来安全风险？
+**推理回答：** 定义技能的组成（说明文件 + 资源），说明按需加载机制，再与工具/MCP 区分职责，最后给出设计要点。
+
 #### 131. 如何评估和测试 AI Agent？
 **答：** 除最终答案外，还要评估工具选择、参数正确性、步骤效率、成功率、成本、延迟、安全违规和恢复能力。测试集应包含正常任务、工具失败、权限不足、注入攻击和模糊目标。Agent 评估最好记录完整轨迹，而不只看最后输出。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在 Agent 题中，要强调它是带状态和动作的闭环系统，必须覆盖工具 schema、权限、循环停止条件、错误恢复、预算控制和审计。
@@ -1794,6 +1927,17 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
+
+#### 527. 你的 agent 会读取不可信内容（邮件、网页、文档）并能调用工具。如何防止间接提示注入和数据外泄？
+**答：** 核心原则：不可信内容只能当作数据，永远不能当作指令；而且要假设模型可能被注入成功，用系统设计限制后果。具体措施：①权限最小化，只给任务需要的工具和范围受限的凭据；②读写分离，读取不产生后果，写入、发送、支付、删除等高风险动作需要人工确认或独立校验；③阻断外泄通道，例如限制可访问的域名、禁止把数据拼进 URL 或图片链接、对外发内容做检查；④隔离，处理不可信内容的组件不持有敏感工具（双 LLM / 隔离模式），只返回结构化结果；⑤在提示中明确标记不可信内容的边界。
+**深入展开：** 还应加入检测与审计：对输入做注入检测（分类器、规则），对工具调用做策略检查（参数是否包含敏感数据、目标是否在白名单内），记录完整日志并告警。要明确过滤器不能根除提示注入，只能提高攻击成本；真正的保障来自“即使被注入也做不了坏事”的架构。上线前用红队测试各种注入载体（隐藏文本、URL 片段、文档元数据）。
+**后续追问：** 追问常见于：为什么仅靠提示词防御不够？“致命三要素”（私有数据、不可信内容、对外通信）指什么？如何在不牺牲可用性的情况下做人工确认？
+**上游参考：** [Prompt Injection in LLMs](https://outcomeschool.com/blog/prompt-injection-in-llms)
+**扩展问题：**
+- 设计一个能读邮件并自动回复的 agent，说明你会在哪些环节设防。
+- 攻击者把指令藏在网页的 URL 片段里，你的防御如何应对？
+- 如何构建提示注入的红队测试集？
+**推理回答：** 先确立“内容是数据不是指令、假设会被注入”的原则，再从权限、读写边界、外泄通道、隔离、检测审计几个层面给出措施，并强调过滤器的局限。
 
 #### 133. reactive agent 与 proactive agent 有何区别？
 **答：** Reactive agent 只在用户请求或事件触发时行动；proactive agent 会主动监控状态、提出建议或执行预定任务。主动型更有价值但风险更高，必须有明确授权、通知机制和撤销能力。生产上通常从 reactive 开始。
@@ -1895,6 +2039,17 @@
 - 应该用哪些实验、指标或日志证明对“Agent orchestration”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
 
+#### 528. 什么是 Sakana Fugu？它如何编排一组 AI 模型？
+**答：** Sakana Fugu 是 Sakana AI 发布的一族“编排器模型”（orchestrator model）。Fugu 不直接回答问题，而是读取问题，决定由哪些前沿模型来处理、它们如何协作，再把结果合成为一个最终回答，对用户来说就像在使用单个模型。动机是没有一个模型在所有方面都最强，不同模型各有专长，而固定组合或简单路由器又太僵硬。
+**深入展开：** 据其技术报告的解读：有两个变体。Fugu 追求速度，每一步只选一个 worker 模型，用一个轻量的选择头读取隐藏状态为各模型打分，不需要生成文本；先用以 softmax 软目标、KL 散度训练的监督微调学会“谁最擅长”，再用无梯度的进化策略（sep-CMA-ES）在端到端任务上打磨。Fugu-Ultra 追求质量，基于 Conductor 框架写出完整的 agent 工作流（子任务、worker id、访问列表），用 GRPO 训练；工作流内部的 agent 相互隔离以免互相抄答案。新模型发布时只需加入模型池，无需重训。报告称它在多项困难基准上超过池中任何单个模型，并自行发现了辩论聚合、构建-调试、引入专家等策略。
+**后续追问：** 追问常见于：它和普通 LLM 路由器有什么区别？为什么用进化策略？如何防止多个 agent 趋同？
+**上游参考：** [Sakana Fugu - The Technical Report Explained](https://outcomeschool.com/blog/decoding-sakana-fugu)
+**扩展问题：**
+- 编排多个闭源模型时，成本和延迟如何控制？
+- “模型编排”作为新的扩展维度，有哪些局限？
+- 如何评估一个编排器是否真的比最强单模型更好，而不只是更贵？
+**推理回答：** 先说明 Fugu 是“指挥者”而非答题者及其动机，再按两个变体讲选择机制与训练方法，最后说明可扩展性和报告中的效果。细节以上游链接的技术报告解读为准。
+
 #### 143. 如何安全构建代码执行 Agent？
 **答：** 代码必须在隔离沙箱中运行，限制文件系统、网络、CPU、内存和执行时间。执行前可做静态扫描，执行后收集 stdout、stderr 和测试结果。禁止让模型直接访问生产密钥或内部网络。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在 Agent 题中，要强调它是带状态和动作的闭环系统，必须覆盖工具 schema、权限、循环停止条件、错误恢复、预算控制和审计。
@@ -1985,6 +2140,16 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
 
+#### 529. 你的长时间运行 agent 在几个小时后发生漂移，信心满满地在做错误的事情。你如何诊断和修复？
+**答：** 诊断：先拿到完整轨迹（每轮的上下文、工具调用和结果），定位从哪一步开始偏离目标。常见根因：①上下文压缩或截断时丢失了原始目标或约束；②早期的错误假设被当成事实反复强化；③工具输出中的误导内容（甚至注入）改变了方向；④没有可验证的进度标准，agent 用“我觉得完成了”代替检查；⑤长上下文中注意力被近期大量细节稀释。
+**深入展开：** 修复：①把目标、约束和验收标准写入外部持久文件（计划/进度文件），每轮或每次压缩后重新注入；②设置周期性检查点，让 agent（或独立的评审 agent）对照原始目标复盘；③用可执行的验证（测试、断言、对比预期）代替自我评价；④压缩摘要模板强制保留目标与约束；⑤设置漂移检测信号，如长时间没有可验证进展、反复修改无关文件，触发暂停并请求人工确认；⑥把超长任务拆成有明确交接的阶段。最后用回放和长任务评估确认修复有效。
+**后续追问：** 追问常见于：如何自动检测漂移？评审 agent 也漂移怎么办？进度文件应包含什么？
+**扩展问题：**
+- 设计一个能在漂移发生时自动报警的监控指标。
+- 比较“定期重新注入目标”和“阶段性拆分任务”两种方案的取舍。
+- 如何用回放来复现并验证漂移问题已修复？
+**推理回答：** 按“诊断（看轨迹、找偏离点、归因）→ 修复（持久化目标、检查点、可执行验证、漂移检测、拆分阶段）→ 验证”的结构回答。
+
 #### 152. LLM 选对工具但参数抽取错误，如何修复？
 **答：** 强化参数 schema、字段说明、类型约束和示例，加入参数验证错误回传。对高风险参数使用二次确认或从原文 span 抽取。可以把“意图识别”和“参数抽取”拆成两步，并用测试集覆盖边界格式。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在 Agent 题中，要强调它是带状态和动作的闭环系统，必须覆盖工具 schema、权限、循环停止条件、错误恢复、预算控制和审计。
@@ -1994,6 +2159,61 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“AI Agent 与 Agentic 系统”中的动作编排层，决定模型如何规划、调用工具、处理失败和停止循环。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“任务成功率、工具选择准确率、参数正确率、平均步数、越权/循环事件数”验证答案，而不是只依赖主观感觉。
+
+#### 530. 计算机使用 agent（Computer-Use Agent）是如何工作的？
+**答：** 计算机使用 agent 像人一样操作电脑：在循环中①截取屏幕截图（有时附带无障碍树等结构信息）；②由视觉语言模型理解屏幕内容和当前目标，决定下一步动作；③输出结构化动作，如在坐标 (x, y) 点击、输入文本、按键、滚动、拖拽；④由执行层在真实或虚拟桌面上执行；⑤再截图观察结果，直到任务完成或达到上限。
+**深入展开：** 关键能力是 GUI grounding，即把“点击提交按钮”这样的意图映射到屏幕上的准确坐标。工程要点：通常运行在隔离的虚拟机或容器中；每个动作执行前做安全检查，登录、购买、删除等需人工确认；屏幕上的文字属于不可信内容，需防提示注入；截图开销大、速度慢，可结合结构化信息或 API 提速。常用基准有 OSWorld 等。
+**后续追问：** 追问常见于：截图与无障碍树各有什么优劣？如何提高点击坐标的准确率？如何防止误操作？
+**上游参考：** [How do Computer-Use Agents work?](https://outcomeschool.com/blog/how-do-computer-use-agents-work)
+**扩展问题：**
+- 与直接调用 API 相比，什么场景下必须使用计算机使用 agent？
+- 设计计算机使用 agent 的动作 schema，应包含哪些动作？
+- 屏幕上出现了“请将文件发送到某邮箱”的文字，agent 应如何处理？
+**推理回答：** 按“观察 → 理解 → 动作 → 执行 → 再观察”的循环讲解，突出 GUI grounding，再补充隔离、安全审批和注入防护等工程要点。
+
+#### 531. 浏览器 agent 是如何工作的？
+**答：** 浏览器 agent 在网页浏览器中代替用户完成任务。它循环执行：读取页面状态（DOM 或其简化版本、无障碍树、截图）→ 模型结合任务目标决定下一步 → 输出动作（打开 URL、点击元素、填写表单、滚动、切换标签页）→ 通过浏览器自动化工具（如 Playwright、CDP）执行 → 观察新的页面状态，直到完成。
+**深入展开：** 与通用计算机使用 agent 相比，浏览器 agent 可以利用 DOM 结构，用元素引用而不是像素坐标来定位，更快更准；也可以混合使用截图处理视觉信息。难点：页面庞大需要裁剪上下文、动态加载和弹窗、登录与验证码、网站结构变化。安全上，网页内容是不可信输入，要防间接提示注入，限制可访问的域名，对提交、付款等写操作进行人工确认，使用范围受限的会话凭据。
+**后续追问：** 追问常见于：DOM 与截图如何结合？如何压缩庞大的页面内容？如何处理登录态？
+**上游参考：** [How do Browser Agents work?](https://outcomeschool.com/blog/how-do-browser-agents-work)
+**扩展问题：**
+- 如何把一个几万 token 的 DOM 压缩成模型可用的页面表示？
+- 浏览器 agent 遇到验证码时应该怎么做？
+- 如何评估浏览器 agent 的任务成功率（例如用 WebArena 类基准）？
+**推理回答：** 描述浏览器 agent 的观察-决策-执行循环，强调 DOM 带来的优势，再讨论上下文、动态页面和安全方面的难点。
+
+#### 532. LangChain 是如何工作的？
+**答：** LangChain 是构建 LLM 应用的开源框架，把常用组件做成可组合的模块：模型接口（统一封装不同厂商的聊天模型）、提示词模板、输出解析器、文档加载器、文本切分器、嵌入与向量存储、检索器、工具与 agent。开发者把这些组件串联成“链”：例如 提示模板 → 模型 → 输出解析器，或 检索器 → 拼接上下文 → 模型，构成一个 RAG 流程。
+**深入展开：** 它用统一的 Runnable 接口（LCEL，LangChain Expression Language）把组件用管道组合，支持流式、批处理和异步。agent 部分让模型根据工具描述选择调用工具，框架负责执行工具并把结果交还模型。优点是集成丰富、上手快；缺点是抽象层多，调试和定制有时比较困难。对于需要复杂控制流、状态和循环的 agent，官方推荐配合 LangGraph 使用。
+**后续追问：** 追问常见于：LCEL 是什么？LangChain 与 LangGraph 的关系？什么时候不应该用框架？
+**上游参考：** [How does LangChain work?](https://outcomeschool.com/blog/how-does-langchain-work)
+**扩展问题：**
+- 用 LangChain 搭建一个 RAG 问答流程，需要哪些组件？
+- LangChain 的抽象带来了哪些调试困难？如何借助 tracing 工具排查？
+- 如果要换一个模型提供商，LangChain 如何降低迁移成本？
+**推理回答：** 先说明 LangChain 的定位与核心组件，再说明“链”的组合方式和 agent 的工作方式，最后客观评价优缺点及与 LangGraph 的关系。
+
+#### 533. LangGraph 是如何工作的？
+**答：** LangGraph 是 LangChain 团队推出的用于构建有状态 agent 的框架，用“图”来描述流程：先定义状态（state，通常是一个类型化的字典），再添加节点（读取状态、调用模型或工具、返回状态更新的函数），用边连接节点，其中条件边根据当前状态决定下一个节点；图可以有环，从而实现 agent 的“思考-调用工具-再思考”循环。编译后运行，状态在节点间传递和合并。
+**深入展开：** 重要特性：①检查点（checkpointer），每一步的状态都可以持久化，支持暂停、恢复、回溯和长时间运行；②人工介入，可在某个节点前中断等待人工审批或修改状态；③流式输出中间步骤；④支持子图和多 agent 编排。相比 LangChain 中线性的链，LangGraph 给了开发者对控制流的显式掌控，适合需要分支、循环、可靠恢复和审计的生产级 agent。
+**后续追问：** 追问常见于：状态的 reducer 是什么？检查点如何实现持久化？LangGraph 与普通 while 循环 agent 相比有何优劣？
+**上游参考：** [How does LangGraph work?](https://outcomeschool.com/blog/how-does-langgraph-work)
+**扩展问题：**
+- 用 LangGraph 设计一个带人工审批的工单处理 agent，画出节点和边。
+- 如何利用检查点实现 agent 的“时间回溯”调试？
+- 状态设计不当会导致哪些问题？
+**推理回答：** 按“状态 → 节点 → 边/条件边 → 环 → 编译运行”的结构讲解，再介绍检查点、人工介入等生产特性，并与 LangChain 的链对比。
+
+#### 534. 什么是 OKF（Open Knowledge Format，开放知识格式）？
+**答：** OKF 是一个开放标准，用于把组织对其数据和系统的了解，写成一个由普通 markdown 文件组成的文件夹，让任何 AI agent 或工具都能读取。它解决的问题是：数据的业务含义（例如哪些订单算销售、测试订单要排除、退款是负数行）分散在资深员工的脑子里、旧 wiki、代码注释和表格中，agent 只能看到列名，无法去问人。据上游链接介绍，OKF 由 Google Cloud Data Cloud 团队于 2026 年 6 月 13 日以 0.1 版本发布。
+**深入展开：** 结构：一个 bundle 就是一个文件夹，每个概念一个 markdown 文件，文件路径即概念的标识；文件顶部有 YAML frontmatter，唯一必填字段是 type，常用可选字段有 title、description、resource、tags、timestamp；文件之间用普通 markdown 链接互相引用，使 bundle 成为 agent 可以遍历的图。OKF 只记录数据的含义，不存储数据本身。它刻意保持朴素：不需要专门软件、人和机器读起来一样、可以随代码一起做版本管理。它与 MCP、Agent Skills 互补：MCP 提供连接能力，Skills 提供做事方法，OKF 提供知识。
+**后续追问：** 追问常见于：OKF 与 LLM wiki 有什么区别？agent 如何使用 OKF bundle？为什么选择纯 markdown？
+**上游参考：** [What is OKF (Open Knowledge Format)?](https://outcomeschool.com/blog/what-is-okf-open-knowledge-format)
+**扩展问题：**
+- 为一张 orders 表写一个 OKF 文件，frontmatter 和正文应包含什么？
+- 如何保持 OKF 知识与真实数据定义同步、不过时？
+- OKF、MCP、Agent Skills 在一个数据分析 agent 中如何配合？
+**推理回答：** 先讲它要解决的“知识分散”问题，再说明 bundle 的结构与字段，强调“只存含义不存数据”，最后与 MCP、Agent Skills 对比定位。具体发布信息以上游链接为准。
 
 #### 470. MCP 初始化成功，为什么仍不能假设对端支持所有协议能力？
 **答：** 协议版本兼容不等于所有可选能力都可用。以 2025-11-25 版为例，双方先协商版本和 capabilities，再按已声明能力运行；初始化完成也不代表用户已授权任何业务操作。
@@ -5266,7 +5486,7 @@
 
 <!-- mapping:start（由脚本生成，请勿手改） -->
 
-上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 472/568；“待补”表示后续批次补齐。
+上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 492/568；“待补”表示后续批次补齐。
 
 | 上游题号 | 章节 | 本仓题号 | 上游题目 |
 |---:|---|---:|---|
@@ -5425,30 +5645,30 @@
 | 153 | AI Agent 与 Agentic 系统 | 119 | What is an AI agent, and how does it differ from a simple LLM call? |
 | 154 | AI Agent 与 Agentic 系统 | 120 | AI Agent Memory |
 | 155 | AI Agent 与 Agentic 系统 | 121 | Harness Engineering in AI |
-| 156 | AI Agent 与 Agentic 系统 | 待补 | What matters more for an agentic coding tool like Claude Code: the model or the harness? |
+| 156 | AI Agent 与 Agentic 系统 | 515 | What matters more for an agentic coding tool like Claude Code: the model or the harness? |
 | 157 | AI Agent 与 Agentic 系统 | 122 | Explain the ReAct (Reasoning + Acting) agent architecture. |
 | 158 | AI Agent 与 Agentic 系统 | 123 | What is the Plan-and-Execute agent pattern? |
 | 159 | AI Agent 与 Agentic 系统 | 124 | What is tool use (function calling) in LLMs, and how does it enable agents? |
-| 160 | AI Agent 与 Agentic 系统 | 待补 | What is the difference between structured output and function calling? |
+| 160 | AI Agent 与 Agentic 系统 | 516 | What is the difference between structured output and function calling? |
 | 161 | AI Agent 与 Agentic 系统 | 125 | How do you design and define tools for an AI agent? |
-| 162 | AI Agent 与 Agentic 系统 | 待补 | How does an agent decide when to call a tool versus answering from its own knowledge? |
+| 162 | AI Agent 与 Agentic 系统 | 517 | How does an agent decide when to call a tool versus answering from its own knowledge? |
 | 163 | AI Agent 与 Agentic 系统 | 126 | What is the difference between single-agent and multi-agent systems? |
-| 164 | AI Agent 与 Agentic 系统 | 待补 | When do multi-agent systems break down, and when is a single agent the better choice? |
+| 164 | AI Agent 与 Agentic 系统 | 518 | When do multi-agent systems break down, and when is a single agent the better choice? |
 | 165 | AI Agent 与 Agentic 系统 | 127 | What is Model Context Protocol (MCP), and how does it standardize tool integration? |
-| 166 | AI Agent 与 Agentic 系统 | 待补 | How does MCP differ from traditional function calling? |
-| 167 | AI Agent 与 Agentic 系统 | 待补 | What are AI SubAgents? |
+| 166 | AI Agent 与 Agentic 系统 | 519 | How does MCP differ from traditional function calling? |
+| 167 | AI Agent 与 Agentic 系统 | 520 | What are AI SubAgents? |
 | 168 | AI Agent 与 Agentic 系统 | 128 | What are the different types of agent memory (short-term, long-term, episodic)? |
 | 169 | AI Agent 与 Agentic 系统 | 129 | How do you handle agent failures and implement error recovery? |
 | 170 | AI Agent 与 Agentic 系统 | 130 | What is an agent loop, and how does it decide when to stop? |
-| 171 | AI Agent 与 Agentic 系统 | 待补 | Context Engineering |
-| 172 | AI Agent 与 Agentic 系统 | 待补 | How does context compaction work? |
-| 173 | AI Agent 与 Agentic 系统 | 待补 | Loop Engineering |
-| 174 | AI Agent 与 Agentic 系统 | 待补 | Graph Engineering |
-| 175 | AI Agent 与 Agentic 系统 | 待补 | How AI Agents Communicate? |
-| 176 | AI Agent 与 Agentic 系统 | 待补 | What are Agent Skills? |
+| 171 | AI Agent 与 Agentic 系统 | 521 | Context Engineering |
+| 172 | AI Agent 与 Agentic 系统 | 522 | How does context compaction work? |
+| 173 | AI Agent 与 Agentic 系统 | 523 | Loop Engineering |
+| 174 | AI Agent 与 Agentic 系统 | 524 | Graph Engineering |
+| 175 | AI Agent 与 Agentic 系统 | 525 | How AI Agents Communicate? |
+| 176 | AI Agent 与 Agentic 系统 | 526 | What are Agent Skills? |
 | 177 | AI Agent 与 Agentic 系统 | 131 | How do you evaluate and test AI agents? |
 | 178 | AI Agent 与 Agentic 系统 | 132 | What are the security risks of agentic systems, and how do you mitigate them? |
-| 179 | AI Agent 与 Agentic 系统 | 待补 | Your agent reads untrusted content (emails, web pages, documents) and can call tools. How do you prevent indirect prompt injection and data exfiltration? |
+| 179 | AI Agent 与 Agentic 系统 | 527 | Your agent reads untrusted content (emails, web pages, documents) and can call tools. How do you prevent indirect prompt injection and data exfiltration? |
 | 180 | AI Agent 与 Agentic 系统 | 133 | What is the difference between reactive and proactive agents? |
 | 181 | AI Agent 与 Agentic 系统 | 134 | How do you manage token consumption and cost in long-running agent workflows? |
 | 182 | AI Agent 与 Agentic 系统 | 135 | What is the human-in-the-loop pattern for agents, and when is it needed? |
@@ -5459,7 +5679,7 @@
 | 187 | AI Agent 与 Agentic 系统 | 140 | How do you implement state management in complex agent workflows? |
 | 188 | AI Agent 与 Agentic 系统 | 141 | How do you build a customer support agent with escalation logic? |
 | 189 | AI Agent 与 Agentic 系统 | 142 | What is agent orchestration, and how do you implement it? |
-| 190 | AI Agent 与 Agentic 系统 | 待补 | What is Sakana Fugu, and how does it orchestrate a team of AI models? |
+| 190 | AI Agent 与 Agentic 系统 | 528 | What is Sakana Fugu, and how does it orchestrate a team of AI models? |
 | 191 | AI Agent 与 Agentic 系统 | 143 | How do you build a code execution agent safely using sandboxed environments? |
 | 192 | AI Agent 与 Agentic 系统 | 144 | Your AI agent is stuck in an infinite loop. How do you detect and break the cycle? |
 | 193 | AI Agent 与 Agentic 系统 | 145 | Your AI agent gets conflicting answers from different tools. How does it reconcile them? |
@@ -5469,13 +5689,13 @@
 | 197 | AI Agent 与 Agentic 系统 | 149 | Your AI agent deleted a production database. How do you prevent irreversible actions? |
 | 198 | AI Agent 与 Agentic 系统 | 150 | Your AI agent has many tools, but keeps picking the wrong one. How do you improve tool selection? |
 | 199 | AI Agent 与 Agentic 系统 | 151 | Your AI agent takes too long to complete a task. How do you speed it up? |
-| 200 | AI Agent 与 Agentic 系统 | 待补 | Your long-running agent drifts after hours and confidently works on the wrong thing. How do you diagnose and fix it? |
+| 200 | AI Agent 与 Agentic 系统 | 529 | Your long-running agent drifts after hours and confidently works on the wrong thing. How do you diagnose and fix it? |
 | 201 | AI Agent 与 Agentic 系统 | 152 | Your LLM selects the right tool but extracts the wrong parameters. How do you fix parameter extraction? |
-| 202 | AI Agent 与 Agentic 系统 | 待补 | How do Computer-Use Agents work? |
-| 203 | AI Agent 与 Agentic 系统 | 待补 | How do Browser Agents work? |
-| 204 | AI Agent 与 Agentic 系统 | 待补 | How does LangChain work? |
-| 205 | AI Agent 与 Agentic 系统 | 待补 | How does LangGraph work? |
-| 206 | AI Agent 与 Agentic 系统 | 待补 | What is OKF (Open Knowledge Format)? |
+| 202 | AI Agent 与 Agentic 系统 | 530 | How do Computer-Use Agents work? |
+| 203 | AI Agent 与 Agentic 系统 | 531 | How do Browser Agents work? |
+| 204 | AI Agent 与 Agentic 系统 | 532 | How does LangChain work? |
+| 205 | AI Agent 与 Agentic 系统 | 533 | How does LangGraph work? |
+| 206 | AI Agent 与 Agentic 系统 | 534 | What is OKF (Open Knowledge Format)? |
 | 207 | 微调与模型适配 | 153 | What is fine-tuning, and when should you fine-tune an LLM? |
 | 208 | 微调与模型适配 | 154 | Explain the difference between full fine-tuning and parameter-efficient fine-tuning (PEFT). |
 | 209 | 微调与模型适配 | 155 | What is LoRA (Low-Rank Adaptation), and how does it work? |
