@@ -52,6 +52,8 @@
 > 2026-10-24 增补（第 3 批）：新增 515–534 题（AI Agent 与智能体系统章节缺失的 20 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 >
 > 2026-10-24 增补（第 4 批）：新增 535–549 题（AI 系统设计章节缺失的 15 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
+>
+> 2026-10-24 增补（第 5 批）：新增 550–563 题（LLMOps 与生产级 AI 章节缺失的 14 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 
 每个问题都按五层组织：
 
@@ -3373,6 +3375,61 @@
 
 ### LLMOps 与生产级 AI
 
+#### 550. Prompt Caching（提示缓存）是如何工作的？
+**答：** LLM 处理提示时，prefill 阶段会为每个 token 计算各层的 Key/Value（KV cache）。如果很多请求共享相同的前缀（系统提示、工具定义、长文档、few-shot 示例），这部分 KV 每次都会被重复计算。提示缓存把已算好的前缀 KV 保存下来，下一个请求的前缀完全相同时直接复用，只计算新增部分，从而降低首 token 延迟和费用。
+**深入展开：** 要点：①只能按前缀匹配：缓存命中要求从开头起逐 token 完全一致，所以要把稳定内容放前面，把变化的内容（用户问题、时间戳）放后面；②缓存有生命周期，空闲一段时间后会被淘汰；③服务端实现上，vLLM 的自动前缀缓存按块对 KV 做哈希复用，SGLang 用 RadixAttention 以基数树管理共享前缀；④托管 API 通常对缓存命中的输入 token 收取更低费用，有的需要显式标记缓存断点，有的自动缓存；⑤它缓存的是中间计算结果而不是答案，输出仍然重新生成，与“语义缓存”（相似问题直接返回旧答案）不同。
+**后续追问：** 追问常见于：为什么只能前缀匹配？提示应如何排布才能提高命中率？和语义缓存有什么区别？缓存占用的显存如何管理？
+**上游参考：** [How does Prompt Caching work?](https://outcomeschool.com/blog/how-does-prompt-caching-work)
+**扩展问题：**
+- 在多轮对话中，怎样组织消息才能让每一轮都命中前一轮的缓存？
+- 系统提示里插入了当前时间，缓存命中率会怎样？如何修改？
+- 提示缓存与 KV cache 是什么关系？
+**推理回答：** 从 prefill 计算 KV 的成本讲起，说明缓存复用的是相同前缀的 KV，再讲前缀匹配的约束、提示排布技巧和与语义缓存的区别。
+
+#### 551. Prefill 与 Decode 的区别是什么？
+**答：** LLM 推理分两个阶段。Prefill：一次性并行处理整个输入提示，计算所有输入 token 的 KV cache，并产出第一个输出 token，它决定首 token 延迟（TTFT）。Decode：之后逐个生成 token，每步只处理一个新 token，读取全部历史 KV，它决定每个输出 token 的时间（TPOT）和整体生成速度。
+**深入展开：** 两者特性不同：prefill 是大矩阵乘，GPU 算力能被充分利用；decode 每步计算量小，但要把全部模型权重和 KV cache 从显存读一遍，受显存带宽限制。因此优化手段不同：prefill 关注算力利用率和长提示切块，decode 关注批处理（把多个请求合并以摊薄权重读取）、KV cache 管理、量化和投机解码。服务系统常把两类工作混合调度，或干脆拆到不同机器上（PD 分离）。
+**后续追问：** 追问常见于：为什么 prefill 算力受限、decode 带宽受限？TTFT 和 TPOT 分别由什么决定？长提示对两个阶段有什么影响？
+**上游参考：** [Prefill vs Decode: LLM Inference Optimization](https://outcomeschool.com/blog/prefill-vs-decode-llm-inference-optimization)
+**扩展问题：**
+- 一个请求输入 8000 token、输出 200 token，时间大致花在哪个阶段？
+- 为什么增大 batch 能提升 decode 吞吐，却不太能提升 prefill 吞吐？
+- 投机解码优化的是哪个阶段？为什么？
+**推理回答：** 先给出两个阶段的定义和对应的延迟指标，再从计算特性解释二者的瓶颈差异，最后对应到各自的优化手段。
+
+#### 552. 为什么 prefill 是算力受限，而 decode 是显存带宽受限？
+**答：** 关键在算术强度（每读取 1 字节数据做多少次计算）。Prefill 一次处理 N 个输入 token，读一次权重就能和 N 个 token 做矩阵乘，计算量随 N 增长而权重读取量不变，算术强度高，瓶颈在算力。Decode 每步只处理 1 个 token（每个请求），为了这一个 token 也要把全部权重读一遍，本质上是矩阵向量乘，算术强度很低，GPU 大部分时间在等数据，瓶颈在显存带宽。
+**深入展开：** 可以用 roofline 模型理解：当算术强度低于硬件的“算力/带宽”比值时，性能受带宽限制。以 bf16 为例，每个参数 2 字节、每个 token 约 2 次浮点运算，batch=1 时强度约为 1 FLOP/字节，远低于现代 GPU 的平衡点（数百 FLOP/字节）。解决办法：①批处理：B 个请求共享一次权重读取，强度约提升 B 倍；②量化：减少每次要读的字节数；③投机解码：一次验证多个 token；④注意力部分还要读 KV cache，长上下文时 KV 读取也成为瓶颈，因此有 GQA、KV 量化等手段。
+**后续追问：** 追问常见于：算术强度怎么算？batch 增大到多少会从带宽受限转为算力受限？KV cache 读取对 decode 有什么影响？
+**上游参考：** [Prefill vs Decode: LLM Inference Optimization](https://outcomeschool.com/blog/prefill-vs-decode-llm-inference-optimization)
+**扩展问题：**
+- 用 roofline 估算：一个 7B 模型在 batch=1 时 decode 的速度上限大约由什么决定？
+- 为什么量化对 decode 加速明显，而对 prefill 加速不那么明显？
+- 长上下文 decode 时，瓶颈会发生什么变化？
+**推理回答：** 用算术强度把两个阶段串起来：prefill 是矩阵乘、强度高；decode 是矩阵向量乘、强度低，然后给出对应的优化方向。
+
+#### 553. 什么是 chunked prefill？为什么它能改善混合流量下的尾延迟？
+**答：** 在连续批处理中，如果一个超长提示的 prefill 一次性执行，它会占满 GPU 数百毫秒到数秒，同一批里正在 decode 的其他请求只能等待，导致它们的 token 间延迟出现尖峰，p99 变差。Chunked prefill 把长提示的 prefill 切成固定大小的块，每个调度步只处理一块，并与其他请求的 decode token 合在同一批里执行。
+**深入展开：** 效果：①decode 请求每一步都能推进，token 间延迟更平稳，尾延迟下降；②prefill 的计算块与 decode 的带宽受限工作混在一起，GPU 利用率更高；③代价是长提示自己的 TTFT 可能略有增加，块大小需要在 TTFT 和 TPOT 之间权衡（块大则 prefill 快但干扰大）。vLLM、SGLang 等推理引擎都支持这种调度。它和 PD 分离是两种思路：一个是在同一 GPU 上更细粒度地混合，另一个是把两类工作物理隔离。
+**后续追问：** 追问常见于：块大小怎么选？对 TTFT 有什么影响？和 PD 分离相比如何选择？
+**上游参考：** [Prefill vs Decode: LLM Inference Optimization](https://outcomeschool.com/blog/prefill-vs-decode-llm-inference-optimization)
+**扩展问题：**
+- 线上同时有大量 RAG 长提示和短对话请求，你会如何配置 chunked prefill？
+- 如何监控并验证 chunked prefill 确实改善了尾延迟？
+- 为什么混合 prefill 块和 decode 能提升 GPU 利用率？
+**推理回答：** 先描述长 prefill 阻塞 decode 导致尾延迟的问题，再说明切块混合调度的机制和收益，最后讨论块大小的权衡及与 PD 分离的关系。
+
+#### 554. 什么是 Prefill-Decode 分离（PD Disaggregation）？什么时候值得做？
+**答：** PD 分离是把 prefill 和 decode 放到不同的 GPU（或机器）池上执行：prefill 节点处理提示、生成 KV cache，再把 KV cache 通过高速网络传给 decode 节点，由 decode 节点继续逐 token 生成。这样两个阶段互不干扰，并可以分别选择硬件、并行方式和扩缩容策略。
+**深入展开：** 收益：①消除长 prefill 对 decode 的干扰，TPOT 更稳定；②两个池可以独立扩缩，例如长输入、短输出的负载多配 prefill 节点；③可以针对算力受限和带宽受限分别优化配置。代价：①KV cache 传输需要高带宽互联（如 NVLink、RDMA），否则传输时间会吃掉收益；②系统更复杂，需要调度、KV 传输和故障处理；③小规模部署或负载较轻时，资源可能闲置。一般在规模大、对 TTFT 和 TPOT 都有严格 SLO、输入输出长度差异明显的场景才值得做；中小规模先用 chunked prefill。
+**后续追问：** 追问常见于：KV 传输开销有多大？prefill 与 decode 节点比例如何确定？和 chunked prefill 怎么选？
+**上游参考：** [Prefill-Decode Disaggregation in LLM Inference](https://outcomeschool.com/blog/prefill-decode-disaggregation)
+**扩展问题：**
+- 估算一个 8000 token 提示的 KV cache 大小，并讨论跨机传输它需要多长时间。
+- 如果 decode 节点故障，正在进行的请求如何处理？
+- 你会用哪些指标来决定 prefill 与 decode 节点的配比？
+**推理回答：** 先定义分离架构和 KV 传输流程，再列出收益与代价，最后给出适用条件并与 chunked prefill 对比。
+
 #### 236. 解释 AI 产品从想法到生产的生命周期。
 **答：** 生命周期包括问题定义、数据评估、原型、离线评测、风险评估、试点、上线、监控、反馈和迭代。AI 产品还需要持续评估模型漂移、prompt 版本、成本和安全事件。上线不是结束，而是质量闭环开始。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLMOps 题中，要把模型调用放进生产治理体系，覆盖版本、灰度、回滚、限流、成本、日志、trace、安全策略和持续评估。
@@ -3412,6 +3469,17 @@
 - 如果把“模型量化”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“模型量化”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLMOps 与生产级 AI”中的生产治理层，决定模型服务是否可观测、可控、可回滚和可持续优化。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“p95/p99 延迟、错误率、成本、质量回归、安全拦截、版本回滚时间”验证答案，而不是只依赖主观感觉。
+
+#### 555. 解释训练后量化（PTQ）与量化感知训练（QAT）的区别。把权重压到 2–4 bit 时会出现什么问题？
+**答：** PTQ：模型训练完成后直接量化，通常只需少量校准数据来确定缩放因子，成本低、速度快，GPTQ、AWQ、llama.cpp 的 GGUF 量化都属于这一类。QAT：在训练或微调时模拟量化（前向用量化后的权重，反向用直通估计器传梯度），让模型学会适应量化误差，精度更好，但需要训练资源和数据。
+**深入展开：** 压到 2–4 bit 时的问题：①可表示的数值太少，误差显著增大，困惑度上升，推理、数学、代码等能力往往先退化；②离群值：少数权重或激活数值特别大，统一缩放会让其他值精度损失严重，需要分组量化（如每 64/128 个权重一组缩放因子）、保护重要通道（AWQ）或旋转变换处理；③小模型比大模型更敏感；④长上下文和多语言等长尾能力可能悄悄退化，困惑度看不出来；⑤低比特需要专门的计算内核，否则反而更慢。经验上 8 bit 基本无损，4 bit 配合好的方法损失较小，2–3 bit 通常需要 QAT 或更复杂的方法。
+**后续追问：** 追问常见于：GPTQ 和 AWQ 的思路是什么？为什么会有离群值？如何评估量化后的质量？权重量化和激活量化有何不同？
+**上游参考：** [How does Model Quantization work?](https://outcomeschool.com/blog/how-does-model-quantization-work)
+**扩展问题：**
+- 你把一个模型量化到 4 bit 后困惑度几乎不变，但业务指标下降了，可能是什么原因？
+- 分组量化中组的大小如何影响精度和存储开销？
+- 什么情况下值得为了量化去做 QAT？
+**推理回答：** 先对比 PTQ 和 QAT 的做法与成本，再按“数值范围不足、离群值、模型规模、长尾能力、内核支持”说明低比特的问题，并给出经验结论。
 
 #### 240. 如何监控生产 LLM 应用？
 **答：** 监控请求量、延迟、错误率、token、成本、模型版本、检索质量、格式失败、安全拦截、用户反馈和业务指标。日志要脱敏并支持 trace，从用户请求追到检索、模型和工具调用。还要监控数据漂移和质量回归。
@@ -3573,6 +3641,17 @@
 - 应该用哪些实验、指标或日志证明对“LLM API 管理的 gateway pattern”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLMOps 与生产级 AI”中的生产治理层，决定模型服务是否可观测、可控、可回滚和可持续优化。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“p95/p99 延迟、错误率、成本、质量回归、安全拦截、版本回滚时间”验证答案，而不是只依赖主观感觉。
 
+#### 556. Token Streaming（流式输出）是如何工作的？
+**答：** LLM 是逐 token 生成的，流式输出就是每生成一个（或几个）token 就立即发给客户端，而不是等整段回答生成完。常见实现是 HTTP 上的 Server-Sent Events（SSE）：服务器保持连接，按 `data: {...}` 的格式持续推送增量内容，最后发送结束标记；也可以用 WebSocket。客户端逐块拼接并渲染。
+**深入展开：** 好处：用户感知延迟取决于首 token 时间而不是总生成时间，体验更好；也可以在生成中途取消，节省算力。实现细节：①服务端推理引擎每个 decode 步产出 token，经反分词（detokenize）成文本，注意多字节字符或子词可能跨 token，要缓冲到完整字符再发送；②工具调用参数也可以流式返回，客户端要能处理不完整的 JSON；③网关、代理、负载均衡器不能缓冲响应，需关闭缓冲并设置合适的超时；④断线重连与取消要传递到推理引擎，及时释放资源；⑤输出安全审核在流式场景下需要按块检查或延迟少量 token。
+**后续追问：** 追问常见于：SSE 和 WebSocket 怎么选？如何处理跨 chunk 的数据？流式场景下怎么做内容审核？用户取消时后端怎么办？
+**上游参考：** [How does Token Streaming work?](https://outcomeschool.com/blog/how-does-token-streaming-work)
+**扩展问题：**
+- 中文字符在流式输出时偶尔出现乱码，可能是什么原因？
+- Nginx 后面的流式接口一直等到最后才一次性返回，如何排查？
+- 流式输出时如何统计并计费 token？
+**推理回答：** 先说明逐 token 生成与流式推送的关系，再讲 SSE 协议形式，最后讨论反分词、网关缓冲、取消、审核等工程细节。
+
 #### 256. 如何实现实时 AI 应用的流式响应？
 **答：** 使用服务端流式传输 token 或事件，前端增量渲染，后端仍要处理中断、错误和最终校验。对工具调用可流式展示进度，但敏感结果要等校验后再显示。流式提升感知速度，不一定降低总延迟。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在 LLMOps 题中，要把模型调用放进生产治理体系，覆盖版本、灰度、回滚、限流、成本、日志、trace、安全策略和持续评估。
@@ -3582,6 +3661,72 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“LLMOps 与生产级 AI”中的生产治理层，决定模型服务是否可观测、可控、可回滚和可持续优化。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“p95/p99 延迟、错误率、成本、质量回归、安全拦截、版本回滚时间”验证答案，而不是只依赖主观感觉。
+
+#### 557. vLLM 是如何工作的？
+**答：** vLLM 是一个开源的 LLM 推理与服务引擎，目标是高吞吐、高显存利用率。核心思想是 PagedAttention：借鉴操作系统的虚拟内存分页，把每个请求的 KV cache 切成固定大小的块，分散存放在显存中，由块表记录逻辑块到物理块的映射。这样就不需要为每个请求预留最大长度的连续显存，碎片和浪费大幅减少，同一块显存可以容纳更多并发请求。
+**深入展开：** 其他关键机制：①连续批处理（continuous batching）：以迭代为粒度调度，某个请求完成后立即让新请求加入，而不是等整批结束；②共享块：并行采样、beam search 或相同前缀的请求可以共享 KV 块，配合写时复制；③自动前缀缓存；④支持张量并行、量化、投机解码、LoRA 等；⑤提供 OpenAI 兼容的 API 服务器，便于替换。显存不够时会对请求进行抢占（换出或重算）。
+**后续追问：** 追问常见于：PagedAttention 解决了什么问题？连续批处理和静态批处理有什么区别？显存不足时 vLLM 如何处理？
+**上游参考：** [How does vLLM work?](https://outcomeschool.com/blog/how-does-vllm-work)
+**扩展问题：**
+- 为什么传统的预分配 KV cache 方式会浪费显存？
+- 块大小对性能有什么影响？
+- 在 vLLM 中，同一个前缀的多个请求是如何共享显存的？
+**推理回答：** 先指出 KV cache 显存管理是服务瓶颈，再讲 PagedAttention 的分页思路，然后补充连续批处理、共享和 API 等机制。
+
+#### 558. SGLang 是如何工作的？
+**答：** SGLang 是一个 LLM 服务框架，包含高性能推理运行时和一个前端编程语言。运行时的核心是 RadixAttention：用基数树（radix tree）管理所有请求的 KV cache，自动识别并复用不同请求之间的公共前缀（系统提示、few-shot 示例、多轮对话历史、agent 的多次调用），并用 LRU 策略淘汰。前端语言让开发者用 Python 原语描述多次生成、分支、并行调用等复杂 LLM 程序，运行时据此做更好的调度和缓存复用。
+**深入展开：** 其他特性：①结构化输出加速：用压缩有限状态机，在约束解码（如 JSON schema）时可一次跳过多个确定的 token；②缓存感知调度：优先调度命中缓存多的请求；③与 vLLM 类似也支持连续批处理、分页 KV、张量并行、量化和投机解码等；④OpenAI 兼容服务接口。它特别适合前缀共享多的负载，例如 agent、多轮对话、少样本提示和大量结构化输出。
+**后续追问：** 追问常见于：RadixAttention 和 vLLM 的前缀缓存有何不同？哪些负载最受益？前端语言解决了什么问题？
+**上游参考：** [How does SGLang work?](https://outcomeschool.com/blog/how-does-sglang-work)
+**扩展问题：**
+- 一个 agent 每一步都携带越来越长的历史，SGLang 如何减少重复计算？
+- 压缩有限状态机如何加速 JSON 约束解码？
+- 什么情况下 RadixAttention 的收益会很小？
+**推理回答：** 抓住“运行时 + 前端语言”两部分，重点讲 RadixAttention 的前缀复用，再补充结构化输出和调度特性以及适用负载。
+
+#### 559. TensorRT-LLM 是如何工作的？
+**答：** TensorRT-LLM 是 NVIDIA 推出的 LLM 推理优化库，面向 NVIDIA GPU。它把模型定义编译成高度优化的推理引擎：做算子融合（把多个小算子合成一个内核以减少显存读写）、选择针对具体 GPU 架构调优的内核（包括优化的注意力内核）、支持 FP8、INT8、INT4 等量化，并提供飞行中批处理（in-flight batching，即连续批处理）、分页 KV cache、张量并行和流水线并行。
+**深入展开：** 使用流程一般是：加载模型权重 → 配置量化和并行 → 构建（编译）引擎 → 通过运行时或 Triton 等服务框架部署。优点：在 NVIDIA 硬件上通常能取得很高的性能，尤其能充分利用新架构的低精度能力。代价：与 NVIDIA 硬件绑定；编译步骤增加了部署流程复杂度，换模型或改配置可能需要重新构建；对新模型架构的支持可能晚于更灵活的框架。
+**后续追问：** 追问常见于：算子融合为什么能提速？编译带来哪些运维成本？和 vLLM 比优缺点是什么？
+**上游参考：** [How does TensorRT-LLM work?](https://outcomeschool.com/blog/how-does-tensorrt-llm-work)
+**扩展问题：**
+- 为什么同一个引擎不能直接在不同型号 GPU 之间通用？
+- FP8 推理在什么硬件上才有意义？会带来哪些精度风险？
+- 你会如何把 TensorRT-LLM 引擎的构建纳入 CI/CD？
+**推理回答：** 概括为“针对 NVIDIA GPU 的编译式推理优化”，列出融合、内核、量化、批处理、并行等技术，再讨论部署流程与取舍。
+
+#### 560. llama.cpp 如何在普通硬件上运行 LLM？
+**答：** llama.cpp 是一个用 C/C++ 编写、依赖很少的推理引擎，让大模型能在笔记本、台式机甚至手机上运行。核心手段：①量化：把 16 bit 权重压缩到 8、5、4 甚至更低 bit（如 Q4_K_M 这类格式），模型体积和内存需求大幅下降；②GGUF 文件格式：把权重、分词器、超参数等打包在一个文件里；③内存映射（mmap）：直接把文件映射到内存，按需加载，启动快；④针对 CPU 的优化：SIMD 指令、多线程；⑤可把部分层卸载到 GPU（Metal、CUDA、Vulkan 等），CPU 与 GPU 协同。
+**深入展开：** 因为 decode 主要受内存带宽限制，量化减少了每个 token 要读取的字节数，所以在普通硬件上也能获得可用的速度。Q4_K_M 这类名称中，数字表示大致比特数，K 表示分块（k-quant）量化方案，后缀表示不同精度混合的档位。限制：并发吞吐不如 GPU 服务引擎，适合本地、单用户或边缘场景；低比特会带来质量损失。Ollama 等工具就构建在它之上。
+**后续追问：** 追问常见于：Q4_K_M 是什么意思？mmap 有什么好处？CPU 推理的瓶颈在哪里？部分层卸载到 GPU 如何选择层数？
+**上游参考：** [How does llama.cpp run LLMs on everyday hardware?](https://outcomeschool.com/blog/how-does-llama-cpp-run-llms-on-everyday-hardware)
+**扩展问题：**
+- 8 GB 内存的笔记本上能运行多大的模型？如何估算？
+- 为什么同一模型在 Apple Silicon 上往往比在同价位 x86 CPU 上快？
+- 什么情况下不应选择 llama.cpp 作为服务方案？
+**推理回答：** 从“让大模型在小硬件上跑”的目标出发，依次讲量化、GGUF、mmap、CPU 优化和 GPU 卸载，并说明适用边界。
+
+#### 561. Ollama 是如何工作的？
+**答：** Ollama 是一个让本地运行 LLM 变得简单的开源工具，类似模型的“应用商店 + 运行时”。用户用一条命令（如 `ollama run <模型名>`）即可下载并运行模型。它在本地启动一个后台服务，提供 REST API（以及 OpenAI 兼容接口），底层推理基于 llama.cpp 和 GGUF 量化模型。模型以 Modelfile 描述（基础模型、参数、系统提示、模板），可以自定义并分享。
+**深入展开：** 工作细节：①模型从模型库按层拉取并缓存在本地；②根据硬件自动检测并使用 GPU（CUDA、Metal 等），显存不够时部分放在 CPU；③按需把模型加载到内存，空闲一段时间后卸载；④处理聊天模板，把消息格式化成模型需要的提示。优点：上手简单、隐私好、离线可用、没有按次费用；限制：受本地硬件限制，高并发场景不如 vLLM 等专业服务引擎。
+**后续追问：** 追问常见于：Ollama 和 llama.cpp 是什么关系？Modelfile 有什么用？适合生产环境吗？
+**上游参考：** [How does Ollama work?](https://outcomeschool.com/blog/how-does-ollama-work)
+**扩展问题：**
+- 团队想在内网为几十人提供一个本地模型服务，Ollama 合适吗？为什么？
+- 如何用 Modelfile 为团队定制一个带固定系统提示的模型？
+- Ollama 如何决定把多少层放到 GPU 上？
+**推理回答：** 把 Ollama 定位为“基于 llama.cpp 的本地模型管理与服务工具”，说明下载、运行、API、Modelfile 和硬件适配，再讲优缺点。
+
+#### 562. 什么时候选 vLLM，什么时候选 SGLang，什么时候选 TensorRT-LLM？
+**答：** 三者都是高性能 LLM 推理引擎，功能有大量重叠，选型主要看负载和约束。vLLM：社区大、支持模型多、上手简单、硬件覆盖广，是通用的默认选择。SGLang：RadixAttention 对前缀共享多的负载（agent、多轮对话、few-shot、大量结构化输出）有优势，适合复杂的 LLM 程序。TensorRT-LLM：在 NVIDIA GPU 上追求极致性能、需要充分利用 FP8 等低精度、能接受编译式部署流程时选择。
+**深入展开：** 实际决策建议：①用自己的真实流量（输入输出长度分布、并发、前缀共享程度）做基准测试，比较吞吐、TTFT、TPOT 和成本，而不是只看公开榜单；②考虑运维：新模型支持速度、升级频率、团队熟悉度、与现有服务框架（如 Triton、Kubernetes）的集成；③硬件：非 NVIDIA 硬件时 TensorRT-LLM 不适用；④三者都在快速迭代，结论有时效性，要定期复测。
+**后续追问：** 追问常见于：如何设计推理引擎的基准测试？哪些负载特征影响选型？切换引擎的成本有多大？
+**上游参考：** [How does vLLM work?](https://outcomeschool.com/blog/how-does-vllm-work)、[How does SGLang work?](https://outcomeschool.com/blog/how-does-sglang-work)、[How does TensorRT-LLM work?](https://outcomeschool.com/blog/how-does-tensorrt-llm-work)
+**扩展问题：**
+- 你的负载是大量 RAG 请求，每个都带同样的长系统提示，你会优先测试哪个引擎？为什么？
+- 基准测试中，你会如何构造请求以反映真实流量？
+- 如果新发布的模型只有某一个引擎支持，你会如何权衡？
+**推理回答：** 先概括三者各自的优势场景，再强调用真实负载做基准测试，并把运维、硬件和时效性纳入决策。
 
 #### 257. 生产 AI 系统关键 SLA 和指标有哪些？
 **答：** 包括可用性、p50/p95/p99 延迟、吞吐、错误率、TTFT、每 token 延迟、成本、质量分、安全违规率和人工升级率。RAG 还要看检索召回、引用准确率和新鲜度。指标应绑定业务目标。
@@ -3662,6 +3807,17 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“LLMOps 与生产级 AI”中的生产治理层，决定模型服务是否可观测、可控、可回滚和可持续优化。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“p95/p99 延迟、错误率、成本、质量回归、安全拦截、版本回滚时间”验证答案，而不是只依赖主观感觉。
+
+#### 563. 一次部署后，模型没变，但 LLM 接口的 p99 延迟翻倍了。你如何诊断？
+**答：** 先确认问题范围，再按请求链路逐段定位。第一步：对比部署前后的指标，确认是全部请求还是某类请求（某个租户、某种提示长度、某个区域）变慢；把延迟拆成排队时间、TTFT、TPOT 和输出长度，看是哪一段变了。第二步：列出这次部署实际改了什么：推理引擎或驱动版本、批处理/调度参数（最大 batch、chunked prefill、最大并发）、KV cache 显存比例、量化或内核、提示模板或系统提示（变长会增加 prefill、降低缓存命中）、采样参数、网关或流式缓冲配置、实例数量或机器类型。
+**深入展开：** 常见原因：①提示模板变了导致前缀缓存失效，TTFT 上升；②输出变长（模板或停止词变化）让总延迟增加；③调度参数变化导致排队增加，或显存配置变化导致频繁抢占；④新版本引擎或内核回退（如注意力内核未启用）；⑤扩缩容或负载均衡策略变化，流量分配不均；⑥新增了同步的审核、日志或追踪调用。方法：用分布式追踪看各阶段耗时，在预发环境用相同流量回放对比，逐项回滚（二分）定位，确认后修复并补充监控告警和发布前的性能回归测试。
+**后续追问：** 追问常见于：如何把延迟拆解到各个阶段？如何确定是引擎问题还是流量变化？怎样防止下次再发生？
+**上游参考：** 上游第 356 题（上游未附链接）：Your LLM endpoint's p99 latency doubled after a deploy with no model change. How do you diagnose it?
+**扩展问题：**
+- p50 不变而只有 p99 翻倍，这说明了什么？
+- 你会在发布流程中加入哪些性能门禁？
+- 如何区分是排队导致的延迟还是 GPU 计算变慢？
+**推理回答：** 按“确认范围—拆解延迟—列出变更—逐项验证—修复与预防”的步骤回答，并给出与 LLM 服务相关的典型原因。
 
 #### 265. 生产 LLM 成本过高，如何降低且不降质？
 **答：** 先做成本分解，再优化高占比环节：减少上下文、缓存、语义路由、小模型替代、批处理和输出限制。用离线 eval 和线上指标验证质量。不要一刀切换更便宜模型，应按任务复杂度路由。
@@ -5656,7 +5812,7 @@
 
 <!-- mapping:start（由脚本生成，请勿手改） -->
 
-上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 507/568；“待补”表示后续批次补齐。
+上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 521/568；“待补”表示后续批次补齐。
 
 | 上游题号 | 章节 | 本仓题号 | 上游题目 |
 |---:|---|---:|---|
@@ -5973,16 +6129,16 @@
 | 311 | AI 系统设计 | 233 | Design a multi-agent workflow system where agents collaborate on complex tasks. |
 | 312 | AI 系统设计 | 234 | Design a real-time AI transcription system for concurrent audio streams. |
 | 313 | AI 系统设计 | 235 | Design an AI-powered live streaming content moderation system. |
-| 314 | LLMOps 与生产级 AI | 待补 | How does Prompt Caching work? |
-| 315 | LLMOps 与生产级 AI | 待补 | Prefill vs Decode |
-| 316 | LLMOps 与生产级 AI | 待补 | Why is prefill compute-bound and decode memory-bandwidth-bound? |
-| 317 | LLMOps 与生产级 AI | 待补 | What is chunked prefill, and why does it improve tail latency under mixed traffic? |
-| 318 | LLMOps 与生产级 AI | 待补 | What is Prefill-Decode Disaggregation, and when does it pay off? |
+| 314 | LLMOps 与生产级 AI | 550 | How does Prompt Caching work? |
+| 315 | LLMOps 与生产级 AI | 551 | Prefill vs Decode |
+| 316 | LLMOps 与生产级 AI | 552 | Why is prefill compute-bound and decode memory-bandwidth-bound? |
+| 317 | LLMOps 与生产级 AI | 553 | What is chunked prefill, and why does it improve tail latency under mixed traffic? |
+| 318 | LLMOps 与生产级 AI | 554 | What is Prefill-Decode Disaggregation, and when does it pay off? |
 | 319 | LLMOps 与生产级 AI | 236 | Explain the AI product lifecycle from ideation to production. |
 | 320 | LLMOps 与生产级 AI | 237 | What is LLMOps, and how does it differ from traditional MLOps? |
 | 321 | LLMOps 与生产级 AI | 238 | How do you serve LLMs in production? |
 | 322 | LLMOps 与生产级 AI | 239 | What is model quantization? |
-| 323 | LLMOps 与生产级 AI | 待补 | Explain post-training quantization (PTQ) vs quantization-aware training (QAT). What breaks when you push weights to 2-4 bits? |
+| 323 | LLMOps 与生产级 AI | 555 | Explain post-training quantization (PTQ) vs quantization-aware training (QAT). What breaks when you push weights to 2-4 bits? |
 | 324 | LLMOps 与生产级 AI | 240 | How do you monitor LLM applications in production? |
 | 325 | LLMOps 与生产级 AI | 241 | What is LLM observability? |
 | 326 | LLMOps 与生产级 AI | 242 | What are guardrails for LLMs, and how do you implement them? |
@@ -5999,14 +6155,14 @@
 | 337 | LLMOps 与生产级 AI | 253 | How do you implement logging and tracing for LLM applications? |
 | 338 | LLMOps 与生产级 AI | 254 | How do you handle PII and sensitive data in LLM inputs and outputs? |
 | 339 | LLMOps 与生产级 AI | 255 | What is a gateway pattern for LLM API management? |
-| 340 | LLMOps 与生产级 AI | 待补 | How does Token Streaming work? |
+| 340 | LLMOps 与生产级 AI | 556 | How does Token Streaming work? |
 | 341 | LLMOps 与生产级 AI | 256 | How do you implement streaming responses for real-time AI applications? |
-| 342 | LLMOps 与生产级 AI | 待补 | How does vLLM work? |
-| 343 | LLMOps 与生产级 AI | 待补 | How does SGLang work? |
-| 344 | LLMOps 与生产级 AI | 待补 | How does TensorRT-LLM work? |
-| 345 | LLMOps 与生产级 AI | 待补 | How does llama.cpp run LLMs on everyday hardware? |
-| 346 | LLMOps 与生产级 AI | 待补 | How does Ollama work? |
-| 347 | LLMOps 与生产级 AI | 待补 | When would you choose vLLM vs SGLang vs TensorRT-LLM? |
+| 342 | LLMOps 与生产级 AI | 557 | How does vLLM work? |
+| 343 | LLMOps 与生产级 AI | 558 | How does SGLang work? |
+| 344 | LLMOps 与生产级 AI | 559 | How does TensorRT-LLM work? |
+| 345 | LLMOps 与生产级 AI | 560 | How does llama.cpp run LLMs on everyday hardware? |
+| 346 | LLMOps 与生产级 AI | 561 | How does Ollama work? |
+| 347 | LLMOps 与生产级 AI | 562 | When would you choose vLLM vs SGLang vs TensorRT-LLM? |
 | 348 | LLMOps 与生产级 AI | 257 | What are the key SLAs and metrics for production AI systems (latency, throughput, availability)? |
 | 349 | LLMOps 与生产级 AI | 258 | Cloud vs on-device Model Deployment for AI applications. |
 | 350 | LLMOps 与生产级 AI | 259 | How do you implement fallback strategies when the primary model is unavailable or rate-limited? |
@@ -6015,7 +6171,7 @@
 | 353 | LLMOps 与生产级 AI | 262 | What is semantic routing, and how do you implement it in a multi-model system? |
 | 354 | LLMOps 与生产级 AI | 263 | How do you manage secrets and API keys securely in LLM applications? |
 | 355 | LLMOps 与生产级 AI | 264 | Your LLM API has latency spikes during peak hours. How do you stabilize it? |
-| 356 | LLMOps 与生产级 AI | 待补 | Your LLM endpoint's p99 latency doubled after a deploy with no model change. How do you diagnose it? |
+| 356 | LLMOps 与生产级 AI | 563 | Your LLM endpoint's p99 latency doubled after a deploy with no model change. How do you diagnose it? |
 | 357 | LLMOps 与生产级 AI | 265 | Your LLM costs are too high in production. How do you reduce costs without degrading quality? |
 | 358 | LLMOps 与生产级 AI | 266 | Your application is hitting LLM provider rate limits during peak hours. How do you handle it? |
 | 359 | LLMOps 与生产级 AI | 267 | Your application depends on one LLM provider. How do you switch providers without downtime? |
