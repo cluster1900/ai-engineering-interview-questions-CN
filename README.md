@@ -54,6 +54,8 @@
 > 2026-10-24 增补（第 4 批）：新增 535–549 题（AI 系统设计章节缺失的 15 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 >
 > 2026-10-24 增补（第 5 批）：新增 550–563 题（LLMOps 与生产级 AI 章节缺失的 14 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
+>
+> 2026-10-24 增补（第 6 批）：新增 564–576 题（AI 基础设施与可扩展性章节缺失的 12 题，以及 AI 安全章节缺失的 1 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 
 每个问题都按五层组织：
 
@@ -4373,6 +4375,17 @@
 - 应该用哪些实验、指标或日志证明对“Interpretability 与 explainability ...”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI 安全、伦理与负责任 AI”中的风险治理层，决定系统能否在隐私、公平、安全和合规边界内运行。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“违规率、误杀/漏检率、审计可复现性、申诉处理率、风险关闭时间”验证答案，而不是只依赖主观感觉。
 
+#### 564. 什么是机制可解释性（mechanistic interpretability）？AI 实验室为什么投入研究它？
+**答：** 机制可解释性试图像逆向工程程序一样，理解神经网络内部到底在计算什么：找出单个神经元、注意力头、特征方向和由它们组成的“电路”分别实现了什么功能。代表性工作包括：在小模型中找到实现特定行为的电路（如归纳头 induction heads 负责复制前文模式）；用稀疏自编码器（SAE）把叠加在一起的激活分解成更可解释的特征；通过激活修补（activation patching）等因果干预验证某个组件是否真的导致了某个行为。
+**深入展开：** 实验室投入的原因：①安全：仅靠输入输出测试无法排除模型存在隐藏的欺骗、后门或危险能力，理解内部机制有望在行为表现出来之前发现问题；②调试与可控性：找到对应概念的特征后，可以通过增强或抑制特征来引导模型行为；③科学理解：解释模型为什么能泛化、为什么会幻觉。难点：叠加（superposition）使一个神经元同时表示多个概念；大模型规模巨大，自动化解释仍不成熟；解释是否完整、可靠也难以验证。
+**后续追问：** 追问常见于：什么是叠加？稀疏自编码器如何帮助解释？可解释性和对齐有什么关系？现有方法的局限是什么？
+**上游参考：** 上游第 412 题（上游未附链接）：What is mechanistic interpretability, and why do AI labs invest in it?
+**扩展问题：**
+- 如何用激活修补验证某个注意力头对某种行为是否必要？
+- 可解释性研究的成果能否直接用于生产环境的安全监控？举例说明。
+- 为什么只看注意力权重不足以解释模型行为？
+**推理回答：** 先给出“逆向工程网络内部计算”的定义并举例方法，再从安全、可控、科学三方面说明投入原因，最后坦诚指出局限。
+
 #### 312. 如何建立用户对 AI 产品的信任？
 **答：** 清楚说明 AI 能力边界、提供证据和引用、允许纠错和申诉、保护隐私，并在不确定时承认不知道。稳定的质量和可预测的失败处理比夸大能力更能建立信任。高风险决策应有人类监督。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在安全治理题中，要把风险分成数据、模型、提示、工具、用户、合规和运营层，并说明预防、检测、响应和审计闭环。
@@ -5054,6 +5067,17 @@
 
 ### AI 基础设施与可扩展性
 
+#### 565. 如何提升生产环境中 LLM 的推理速度？
+**答：** 按层次梳理：①模型层：选更小的模型或蒸馏模型，量化（FP8、INT8、INT4），用 GQA/MQA 等减少 KV cache 的结构；②解码层：投机解码（草稿模型、Medusa、EAGLE、n-gram 提示查找），减少输出长度（提示要求简洁、合理的停止条件）；③服务层：使用 vLLM、SGLang、TensorRT-LLM 等推理引擎，开启连续批处理、分页 KV cache、前缀/提示缓存、chunked prefill，必要时做 PD 分离；④系统层：张量并行降低单请求延迟，多副本提高吞吐，按地域就近部署，流式输出降低感知延迟；⑤应用层：缓存重复请求结果，路由简单请求到小模型，并行化独立的 LLM 调用。
+**深入展开：** 关键是先明确优化目标：降低 TTFT、降低 TPOT、提高吞吐，还是降低成本，它们之间常有取舍（例如增大 batch 提高吞吐但可能增加单请求延迟）。先测量瓶颈：prefill 慢通常与长提示有关，适合提示缓存和裁剪上下文；decode 慢受带宽限制，适合量化、投机解码和批处理。每项优化都要用真实流量做基准，并用评估集确认质量没有下降。
+**后续追问：** 追问常见于：先做哪一项优化收益最大？量化会不会损失质量？投机解码在什么情况下无效？吞吐和延迟如何权衡？
+**上游参考：** [LLM Inference Optimization](https://www.youtube.com/watch?v=jV2sCj4lHYk)
+**扩展问题：**
+- 你的服务 TTFT 很高但 TPOT 正常，你会优先尝试哪些手段？
+- 批大小增大后吞吐提升了，但用户抱怨变慢了，为什么？
+- 如何验证一次优化没有降低回答质量？
+**推理回答：** 先强调明确目标和测量瓶颈，再按模型、解码、服务、系统、应用五个层次列举手段，并说明各自的适用场景和取舍。
+
 #### 373. LLM 常见优化技术有哪些？
 **答：** 包括量化、剪枝、蒸馏、FlashAttention、KV cache、PagedAttention、连续批处理、投机解码、模型并行、张量并行、GQA/MQA 和缓存。优化目标可能是显存、吞吐、延迟或成本。不同技术应按瓶颈选择。
 **深入展开：** 回答时应补充背景、约束、具体步骤、权衡和验证方式，让答案从概念说明升级为可落地方案。在基础设施题中，要从计算、显存、带宽、调度、批处理、缓存、队列和容灾角度说明瓶颈与优化手段。
@@ -5073,6 +5097,72 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“AI 基础设施与可扩展性”中的算力与服务层，决定系统在并发、显存、带宽和故障下能否稳定运行。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“GPU 利用率、TTFT、inter-token latency、吞吐、OOM 率、单位请求成本”验证答案，而不是只依赖主观感觉。
+
+#### 566. GPU 是如何为深度学习工作的？
+**答：** 深度学习的主要计算是大规模矩阵乘法，这类计算可以拆成大量相互独立的小运算并行执行。CPU 只有少量强大的核心，擅长复杂的串行逻辑；GPU 有成千上万个较简单的核心，擅长同时对大量数据执行同样的运算。现代 GPU 还有专门的 Tensor Core，一条指令就能完成小矩阵块的乘加，并支持 FP16、BF16、FP8 等低精度，大幅提高吞吐。
+**深入展开：** 其他关键组成：①高带宽显存（HBM），为计算单元快速供给数据，LLM 推理的 decode 阶段往往受限于此；②多级存储层次：寄存器、共享内存/L1、L2、显存，越近越快但越小，高性能内核会尽量复用片上数据（如 FlashAttention 的分块计算）；③执行模型：线程组织成线程块，以 warp（32 个线程）为单位同步执行同一指令；④多卡互联（NVLink、NVSwitch）和集群网络支持分布式训练与推理。训练时前向、反向传播和参数更新都是矩阵运算，因此能充分利用 GPU。
+**后续追问：** 追问常见于：Tensor Core 是什么？为什么显存带宽很重要？GPU 和 CPU 的根本区别是什么？多卡之间如何通信？
+**上游参考：** [How does a GPU work for Deep Learning?](https://outcomeschool.com/blog/how-does-a-gpu-work-for-deep-learning)
+**扩展问题：**
+- 为什么同样的模型用 BF16 训练比 FP32 快很多？
+- FlashAttention 是如何利用 GPU 存储层次提速的？
+- LLM 推理时 GPU 利用率很低，可能的原因是什么？
+**推理回答：** 从深度学习以矩阵乘为主这一特点出发，对比 CPU 与 GPU 的设计，再介绍 Tensor Core、显存层次、执行模型和多卡互联。
+
+#### 567. CUDA 内核（kernel）是如何工作的？
+**答：** CUDA 内核是在 NVIDIA GPU 上并行执行的函数。CPU（主机）发起内核调用时指定网格（grid）和线程块（block）的数量，GPU 会启动成千上万个线程，每个线程执行同一段代码，但通过自己的线程索引（blockIdx、threadIdx）处理不同的数据。例如向量加法中，第 i 个线程负责计算 c[i] = a[i] + b[i]。典型流程：把数据从主机内存拷贝到显存 → 启动内核 → 把结果拷回。
+**深入展开：** 性能要点：①线程以 warp（32 个线程）为单位执行同一指令，分支发散会降低效率；②访存合并：相邻线程访问相邻地址，才能充分利用显存带宽；③共享内存：同一线程块内的线程可以共享片上高速存储，用于分块（tiling）复用数据，矩阵乘、FlashAttention 都依赖这一点；④占用率：足够多的活跃 warp 可以隐藏访存延迟；⑤内核启动有开销，多个小算子可以融合成一个内核，减少显存往返。深度学习框架中的大多数算子底层都是 CUDA 内核（或基于 cuBLAS、cuDNN、Triton 等编写）。
+**后续追问：** 追问常见于：线程、线程块、网格的关系？什么是访存合并？为什么算子融合能提速？Triton 和直接写 CUDA 有什么区别？
+**上游参考：** [How do CUDA Kernels work?](https://outcomeschool.com/blog/how-do-cuda-kernels-work)
+**扩展问题：**
+- 写一个矩阵乘内核时，如何利用共享内存减少显存访问？
+- 一个逐元素操作的内核为什么通常受带宽限制？
+- 内核中出现大量 if/else 分支会有什么影响？
+**推理回答：** 先讲“同一代码、海量线程、按索引分工”的执行模型，再讲 warp、访存合并、共享内存、占用率和融合等性能要点。
+
+#### 568. Google TPU 是如何工作的？
+**答：** TPU（Tensor Processing Unit）是 Google 为机器学习设计的专用芯片。核心是矩阵乘单元（MXU），采用脉动阵列（systolic array）结构：大量乘加单元排成二维网格，权重预先加载到阵列中，数据像波浪一样逐格流过，每个单元做乘加后把结果传给相邻单元。这样中间结果在单元之间直接传递，不需要反复读写内存，因此矩阵乘的能效和吞吐很高。
+**深入展开：** 其他组成：①配套的向量和标量单元处理激活函数、归一化等非矩阵运算；②高带宽内存（HBM）；③原生支持 bfloat16（这种格式正是 Google 提出的）；④多颗 TPU 通过高速芯片间互联组成 Pod，用于大规模训练；⑤软件栈以 XLA 编译器为核心，把 TensorFlow、JAX、PyTorch 的计算图编译成 TPU 指令，因此 TPU 对静态形状、编译友好的程序效果最好。与 GPU 相比：TPU 更专注于矩阵运算，通用性较弱，主要通过 Google Cloud 提供。
+**后续追问：** 追问常见于：脉动阵列为什么高效？TPU 和 GPU 怎么选？bfloat16 有什么好处？动态形状为什么对 TPU 不友好？
+**上游参考：** [How does a Google TPU work?](https://outcomeschool.com/blog/how-does-a-google-tpu-work)
+**扩展问题：**
+- 为什么脉动阵列适合矩阵乘，却不适合稀疏或不规则计算？
+- 在 TPU 上训练时，batch 中序列长度不一致会带来什么问题？如何处理？
+- bfloat16 与 FP16 相比，取舍是什么？
+**推理回答：** 以脉动阵列为核心解释 TPU 的高效原因，再补充 HBM、bfloat16、Pod 互联和 XLA 编译，最后与 GPU 对比。
+
+#### 569. LPU 是如何工作的？
+**答：** LPU（Language Processing Unit）是 Groq 提出的专用推理芯片，专门用于运行已训练好的语言模型并尽快生成 token，不用于训练。它针对的是 LLM 逐 token 生成时受内存带宽限制这一问题：GPU 每生成一个 token 都要从片外 HBM 读取权重，而 LPU 把权重放在大容量片上 SRAM 中，SRAM 的访问速度远高于 HBM。
+**深入展开：** 设计特点：①确定性执行：没有缓存、乱序执行等不确定行为，由编译器在编译期静态安排每条指令和数据移动的时机，执行时间可精确预测；②单颗芯片的 SRAM 容量有限，一个大模型需要分布在很多颗芯片上，芯片之间同样按编译期确定的时序通信；③因此单用户的生成速度（tokens/秒）非常高、延迟稳定。代价：需要大量芯片才能装下大模型，硬件投入大；编译期固定调度使灵活性较低；不适合训练。
+**后续追问：** 追问常见于：为什么用 SRAM 而不是 HBM？确定性执行带来什么好处？LPU 和 GPU 各适合什么场景？
+**上游参考：** [How does an LPU work?](https://outcomeschool.com/blog/how-does-an-lpu-work)
+**扩展问题：**
+- 一个 70B 模型需要多少片上 SRAM？这对芯片数量意味着什么？
+- 对于高并发、高吞吐的离线批处理任务，LPU 还有优势吗？
+- 编译期静态调度有哪些限制？
+**推理回答：** 从 decode 受带宽限制出发，解释 LPU 用片上 SRAM 和确定性调度来加速，再讨论多芯片部署的代价和适用场景。
+
+#### 570. 估算服务一个 70B 模型需要多少显存（权重、KV cache、激活）。单张 80 GB GPU 放得下吗？
+**答：** 权重：70B 参数 × 2 字节（BF16/FP16）≈ 140 GB；FP8/INT8 ≈ 70 GB；INT4 ≈ 35 GB（加上缩放因子等，实际约 35–40 GB）。KV cache：每 token 大小 = 2（K 和 V）× 层数 × KV 头数 × 头维度 × 每元素字节数。以 Llama 3 70B 为例（80 层、8 个 KV 头、头维度 128，FP16）：2 × 80 × 8 × 128 × 2 ≈ 327,680 字节 ≈ 0.31 MB/token。一个 8K token 的序列约 2.5 GB；同时服务 32 个 8K 序列约 80 GB。激活：推理时只需保存当前层的中间结果，通常是几 GB 量级，此外还有运行时开销和 CUDA 上下文。
+**深入展开：** 结论：①BF16 下 140 GB 权重放不进单张 80 GB 卡，至少需要 2 张（张量并行），实际为了留出 KV cache 空间常用 4 张；②FP8 下权重约 70 GB，单卡只剩约 10 GB 给 KV cache 和运行时，只能支持很少的并发和较短上下文，勉强能跑但不实用；③INT4 约 35–40 GB，单卡可以放下并留出约 40 GB 给 KV cache，代价是质量可能下降。另外 KV cache 也可以量化到 FP8 以减半。实际规划时按目标并发 × 平均上下文长度估算 KV 需求，再加上权重和约 10% 的余量。
+**后续追问：** 追问常见于：GQA 对 KV cache 大小有什么影响？并发和上下文长度如何影响显存？张量并行如何分摊显存？
+**上游参考：** 上游第 487 题（上游未附链接）：Estimate the GPU memory needed to serve a 70B model (weights, KV cache, activations). Does it fit on a single 80 GB GPU?
+**扩展问题：**
+- 如果改用多头注意力（64 个 KV 头）而不是 GQA，KV cache 会变成多大？
+- 目标是 64 并发、每个 4K 上下文，FP8 权重，需要几张 80 GB GPU？
+- 为什么推理时激活占用远小于训练时？
+**推理回答：** 分三部分给出公式和数值（权重按精度、KV 按层数和头数、激活为小量），再根据不同精度判断单卡是否可行，并给出实际规划方法。
+
+#### 571. 做 roofline 计算：一张 H100 在 batch size 为 1 时，70B 模型每秒能生成多少 token？
+**答：** batch=1 时 decode 受显存带宽限制：每生成一个 token 都要把全部权重读一遍，算力远未用满。所以上限 ≈ 显存带宽 ÷ 每 token 需读取的字节数。H100 SXM 的 HBM3 带宽约 3.35 TB/s。BF16 下权重 140 GB，单卡放不下；假设用 FP8 量化（约 70 GB）放进单卡：3.35 TB/s ÷ 70 GB ≈ 48 token/s。INT4（约 35 GB）：≈ 96 token/s。若 BF16 用两张卡张量并行，每张卡读 70 GB，理论上同样约 48 token/s（忽略卡间通信）。
+**深入展开：** 验证是否带宽受限：每 token 计算量约 2 × 70B = 140 GFLOP，按 48 token/s 只需约 6.7 TFLOP/s，而 H100 的稠密 BF16 算力约 1000 TFLOP/s 量级，利用率不到 1%，确实受带宽限制。实际值通常只有理论上限的 60–80%：KV cache 也要读取（上下文越长读得越多）、内核效率、调度开销、张量并行的通信等。提升方式：增大 batch（每次读取权重服务多个请求，总吞吐近似线性增加，直到转为算力受限）、更低比特量化、投机解码（一次读取权重验证多个 token）。
+**后续追问：** 追问常见于：batch 增大到多少会变成算力受限？KV cache 读取如何影响结果？为什么实际值低于理论值？
+**上游参考：** 上游第 488 题（上游未附链接）：Do the roofline math: how many tokens/sec can one H100 produce for a 70B model at batch size 1?
+**扩展问题：**
+- 在相同假设下，batch=32 时总吞吐的上限大约是多少？此时瓶颈是否改变？
+- 上下文长度为 32K 时，每 token 还需要读取多少 KV cache？对速度影响多大？
+- 投机解码的接受率为 70%、每次草拟 4 个 token 时，大致能提速多少？
+**推理回答：** 写出“带宽 ÷ 每 token 读取字节数”的公式，代入具体数值并说明精度假设，再用算力估算验证带宽受限，最后讨论实际折扣和提升手段。
 
 #### 375. 分布式训练中 model parallelism 与 data parallelism 有何区别？
 **答：** Data parallelism 每张 GPU 拥有完整模型，处理不同数据批次并同步梯度；model parallelism 把模型切到多张 GPU 上。数据并行简单但受单卡显存限制，模型并行适合超大模型。实际训练常组合多种并行。
@@ -5124,6 +5214,39 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“AI 基础设施与可扩展性”中的算力与服务层，决定系统在并发、显存、带宽和故障下能否稳定运行。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“GPU 利用率、TTFT、inter-token latency、吞吐、OOM 率、单位请求成本”验证答案，而不是只依赖主观感觉。
 
+#### 572. Medusa（多头投机解码）是如何工作的？
+**答：** 投机解码的思路是先便宜地猜出多个后续 token，再让大模型一次前向并行验证，接受正确的部分，从而减少大模型的前向次数。普通做法需要一个单独的小草稿模型，Medusa 则不需要：它在原模型最后的隐藏状态上额外加几个轻量的解码头（Medusa heads），第 k 个头直接预测第 t+k 个位置的 token。
+**深入展开：** 流程：①原模型前向一次，得到下一个 token 以及各 Medusa 头对后续位置的多个候选；②把各头的 top 候选组合成一棵候选树；③用树注意力（tree attention）在一次前向中同时验证树上的所有路径；④按接受规则选出最长的被接受前缀，然后继续。训练方式：可以冻结原模型只训练 Medusa 头（成本低），也可以与主模型联合微调以获得更高接受率。优点：部署简单，不用维护第二个模型；缺点：越远的位置预测越不准，头之间相互独立、没有考虑前一个猜测的 token，接受率有限。
+**后续追问：** 追问常见于：Medusa 头是如何训练的？树注意力是什么？与草稿模型方案相比有何优劣？
+**上游参考：** [Medusa - Multi-Head Speculative Decoding](https://outcomeschool.com/blog/decoding-medusa)
+**扩展问题：**
+- 为什么第 4 个 Medusa 头的准确率通常明显低于第 1 个？
+- 在高并发大 batch 的服务中，投机解码的收益为什么会下降？
+- 树的宽度和深度如何选择？
+**推理回答：** 先讲投机解码的一般原理，再说明 Medusa 用多个解码头代替草稿模型，接着描述候选树和树注意力验证流程，最后讨论训练与优缺点。
+
+#### 573. EAGLE（特征级投机解码）是如何工作的？
+**答：** EAGLE 也是一种投机解码方法，它的观察是：在原模型的特征层（最后一层之前的隐藏状态）上做自回归预测，比直接在 token 层预测更容易。因此 EAGLE 训练一个很轻量的草稿网络（大约一个 Transformer 层），输入原模型的特征序列以及向前错开一位的 token 嵌入，自回归地预测下一个位置的特征，再用原模型的输出层（LM head）把特征变成 token 分布，从而草拟多个 token。
+**深入展开：** 加入错开一位的 token 是为了消除采样带来的不确定性：同样的特征可能因采样到不同 token 而走向不同的后续，告诉草稿网络实际选了哪个 token，预测会更准。草拟出的候选同样组织成树，由原模型一次前向验证。与 Medusa 的区别：Medusa 的各头独立地并行预测远处位置；EAGLE 是逐步自回归地草拟，每一步都基于前一步的结果，所以接受率通常更高。后续版本（如 EAGLE-2）还根据草稿置信度动态调整候选树的形状。
+**后续追问：** 追问常见于：为什么在特征层预测更容易？为什么要输入错开一位的 token？与 Medusa 相比哪里更好？
+**上游参考：** [EAGLE - Feature-Level Speculative Decoding](https://outcomeschool.com/blog/decoding-eagle)
+**扩展问题：**
+- EAGLE 的草稿网络为什么可以做得这么小？
+- 动态草稿树相比固定树有什么好处？
+- 如何衡量投机解码方法的实际收益？
+**推理回答：** 先说明 EAGLE 在特征层自回归草拟的核心思想，再解释输入错开 token 的作用，最后与 Medusa 对比并提到动态树改进。
+
+#### 574. 什么是 LLM 的 n-gram 投机（N-gram Speculation）？它如何加速生成？
+**答：** n-gram 投机是一种不需要任何草稿模型的投机解码方法。很多场景下，模型要输出的内容会大段重复上下文中已有的文本，例如代码编辑、文档改写、从提供的资料中引用、摘要中复述原句。方法是：取当前已生成内容的最后几个 token（一个 n-gram），在提示和已生成文本中查找相同的 n-gram，把它后面紧跟的若干 token 作为草稿，再让大模型一次前向并行验证，接受匹配的前缀。
+**深入展开：** 特点：①几乎零额外成本：查找只是字符串匹配，不需要训练和额外显存；②在输入与输出重叠度高的任务上加速明显（例如“修改这段代码”）；③在开放式创作、输出与输入几乎不重叠时，基本找不到匹配，收益接近零，但也几乎不增加开销；④与其他方法一样，验证保证输出分布不变（贪心解码时输出完全一致）。vLLM 等推理引擎提供了这种“提示查找”（prompt lookup）模式。
+**后续追问：** 追问常见于：哪些任务受益最大？n 和草稿长度怎么选？为什么能保证输出不变？
+**上游参考：** [N-gram Speculation in LLMs](https://outcomeschool.com/blog/n-gram-speculation-in-llms)
+**扩展问题：**
+- 一个代码助手大部分请求是“修改现有文件”，你会如何评估开启 n-gram 投机的收益？
+- 匹配到多处相同 n-gram 时应选哪一处？
+- 为什么在开放式对话中它几乎没有收益？
+**推理回答：** 先说明“输出常复述上下文”这一观察，再讲查找草稿与并行验证的流程，最后分析适用场景和优缺点。
+
 #### 380. KV cache 是什么？如何管理其内存？
 **答：** KV cache 保存历史 Key/Value，加速自回归生成，但显存随序列长度和并发增长。管理方法包括 PagedAttention、GQA/MQA、量化、上下文截断、前缀共享和调度。容量规划必须包含 KV cache，而不只看权重大小。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在基础设施题中，要从计算、显存、带宽、调度、批处理、缓存、队列和容灾角度说明瓶颈与优化手段。
@@ -5143,6 +5266,17 @@
 - 如果把“PagedAttention”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“PagedAttention”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI 基础设施与可扩展性”中的算力与服务层，决定系统在并发、显存、带宽和故障下能否稳定运行。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“GPU 利用率、TTFT、inter-token latency、吞吐、OOM 率、单位请求成本”验证答案，而不是只依赖主观感觉。
+
+#### 575. GGUF 格式是如何工作的？
+**答：** GGUF 是 llama.cpp 生态使用的模型文件格式，把运行一个模型所需的一切打包进单个文件。结构上依次是：文件头（魔数、版本号、张量数量、元数据数量）→ 元数据键值对（模型架构、层数、上下文长度、分词器词表和合并规则、聊天模板、量化类型等）→ 张量信息表（每个张量的名称、形状、数据类型和在文件中的偏移）→ 按对齐要求存放的张量数据。
+**深入展开：** 设计优点：①自包含：不需要额外的配置文件和分词器文件；②可扩展：新增信息只需加新的键值对，不破坏旧版本兼容性（这是它取代早期 GGML 格式的原因之一）；③数据对齐，便于用内存映射（mmap）直接加载，启动快、多个进程可共享；④支持多种量化类型（如 Q8_0、Q4_K_M 等），不同张量可以使用不同精度。通常由 Hugging Face 格式的模型经转换脚本生成，再用量化工具压缩。
+**后续追问：** 追问常见于：GGUF 与 safetensors 有何不同？为什么需要对齐？量化信息存放在哪里？
+**上游参考：** [How does GGUF work?](https://outcomeschool.com/blog/how-does-gguf-work)
+**扩展问题：**
+- 为什么 GGUF 里要存储分词器和聊天模板？
+- 用 mmap 加载模型对内存占用有什么影响？
+- 把一个 Hugging Face 模型转换成 GGUF 需要经过哪些步骤？
+**推理回答：** 按文件结构（头、元数据、张量信息、数据）说明 GGUF，再讲自包含、可扩展、对齐与 mmap、量化支持等设计优点。
 
 #### 382. 如何优化边缘和移动端推理？
 **答：** 使用小模型、量化、蒸馏、剪枝、端侧加速库和任务专用模型。端侧要控制电量、内存、热量和隐私。复杂任务可端云协同，敏感或低延迟任务在本地处理。
@@ -5263,6 +5397,17 @@
 - 如果把“FSDP”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“FSDP”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“AI 基础设施与可扩展性”中的算力与服务层，决定系统在并发、显存、带宽和故障下能否稳定运行。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“GPU 利用率、TTFT、inter-token latency、吞吐、OOM 率、单位请求成本”验证答案，而不是只依赖主观感觉。
+
+#### 576. TTFT、TPOT 和吞吐量分别是什么？它们之间如何权衡？
+**答：** TTFT（Time To First Token，首 token 时间）：从请求发出到收到第一个输出 token 的时间，主要由排队时间和 prefill 决定，影响用户感受到的响应速度。TPOT（Time Per Output Token，每输出 token 时间，也叫 token 间延迟）：首 token 之后平均每个 token 的生成时间，由 decode 决定，影响阅读流畅度。吞吐量：系统单位时间处理的总 token 数（或请求数），决定成本。单个请求总延迟 ≈ TTFT + TPOT × (输出 token 数 − 1)。
+**深入展开：** 权衡：①增大 batch 能提升吞吐、降低单位成本，但每步 decode 变慢（TPOT 上升），排队和 prefill 插入也可能拉高 TTFT；②长 prefill 与 decode 混合时，优先 prefill 能降低新请求的 TTFT，却会让正在生成的请求卡顿，chunked prefill 和 PD 分离用于缓解；③张量并行增加卡数能降低 TPOT，但单卡吞吐效率下降。实际做法是先定 SLO（如 p95 TTFT < 500ms、TPOT < 50ms），在满足 SLO 的前提下最大化吞吐（即“goodput”）。不同产品侧重不同：聊天看重 TTFT 和 TPOT，离线批处理只看吞吐。
+**后续追问：** 追问常见于：如何测量这几个指标？哪些优化分别改善它们？什么是 goodput？
+**上游参考：** [Prefill vs Decode: LLM Inference Optimization](https://outcomeschool.com/blog/prefill-vs-decode-llm-inference-optimization)
+**扩展问题：**
+- 对实时语音 agent 和离线文档批处理，你会分别如何设置这三个指标的目标？
+- TTFT 的 p99 很高但 p50 正常，最可能的原因是什么？
+- 如何在压测中找到满足 SLO 的最大并发？
+**推理回答：** 先分别定义三个指标及其决定因素，再给出总延迟公式，最后说明批处理、调度和并行带来的权衡，以及“在 SLO 内最大化吞吐”的原则。
 
 #### 394. 如何监控和 profile LLM 推理？
 **答：** 监控 TTFT、inter-token latency、吞吐、GPU 利用率、显存、KV cache、batch size、队列等待和错误率。Profile 要区分 prefill 与 decode 阶段。不同瓶颈对应不同优化：prefill 看算力，decode 常看内存带宽。
@@ -5812,7 +5957,7 @@
 
 <!-- mapping:start（由脚本生成，请勿手改） -->
 
-上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 521/568；“待补”表示后续批次补齐。
+上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 534/568；“待补”表示后续批次补齐。
 
 | 上游题号 | 章节 | 本仓题号 | 上游题目 |
 |---:|---|---:|---|
@@ -6227,7 +6372,7 @@
 | 409 | AI 安全、伦理与负责任 AI | 309 | How do you handle PII in LLM inputs and outputs? |
 | 410 | AI 安全、伦理与负责任 AI | 310 | What is explainability in AI, and why does it matter? |
 | 411 | AI 安全、伦理与负责任 AI | 311 | What is the difference between interpretability and explainability? |
-| 412 | AI 安全、伦理与负责任 AI | 待补 | What is mechanistic interpretability, and why do AI labs invest in it? |
+| 412 | AI 安全、伦理与负责任 AI | 564 | What is mechanistic interpretability, and why do AI labs invest in it? |
 | 413 | AI 安全、伦理与负责任 AI | 312 | How do you build trust with users in AI-powered applications? |
 | 414 | AI 安全、伦理与负责任 AI | 313 | What are adversarial attacks on AI systems, and how do you defend against them? |
 | 415 | AI 安全、伦理与负责任 AI | 314 | What is data poisoning, and how can it affect AI models? |
@@ -6295,26 +6440,26 @@
 | 477 | 多模态 AI | 370 | Your diffusion model ignores precise control requirements in text prompts. How do you improve controllability? |
 | 478 | 多模态 AI | 371 | Your diffusion model generates sharp but repetitive images. How do you balance quality vs diversity? |
 | 479 | 多模态 AI | 372 | Your diffusion model takes too long per image. How do you speed up sampling? |
-| 480 | AI 基础设施与可扩展性 | 待补 | How do you improve inference speed in production LLM deployments? |
+| 480 | AI 基础设施与可扩展性 | 565 | How do you improve inference speed in production LLM deployments? |
 | 481 | AI 基础设施与可扩展性 | 373 | LLM optimization techniques |
 | 482 | AI 基础设施与可扩展性 | 374 | How do you select GPUs for LLM inference? |
-| 483 | AI 基础设施与可扩展性 | 待补 | How does a GPU work for Deep Learning? |
-| 484 | AI 基础设施与可扩展性 | 待补 | How do CUDA Kernels work? |
-| 485 | AI 基础设施与可扩展性 | 待补 | How does a Google TPU work? |
-| 486 | AI 基础设施与可扩展性 | 待补 | How does an LPU work? |
-| 487 | AI 基础设施与可扩展性 | 待补 | Estimate the GPU memory needed to serve a 70B model (weights, KV cache, activations). Does it fit on a single 80 GB GPU? |
-| 488 | AI 基础设施与可扩展性 | 待补 | Do the roofline math: how many tokens/sec can one H100 produce for a 70B model at batch size 1? |
+| 483 | AI 基础设施与可扩展性 | 566 | How does a GPU work for Deep Learning? |
+| 484 | AI 基础设施与可扩展性 | 567 | How do CUDA Kernels work? |
+| 485 | AI 基础设施与可扩展性 | 568 | How does a Google TPU work? |
+| 486 | AI 基础设施与可扩展性 | 569 | How does an LPU work? |
+| 487 | AI 基础设施与可扩展性 | 570 | Estimate the GPU memory needed to serve a 70B model (weights, KV cache, activations). Does it fit on a single 80 GB GPU? |
+| 488 | AI 基础设施与可扩展性 | 571 | Do the roofline math: how many tokens/sec can one H100 produce for a 70B model at batch size 1? |
 | 489 | AI 基础设施与可扩展性 | 375 | What is model parallelism vs data parallelism in distributed training? |
 | 490 | AI 基础设施与可扩展性 | 376 | What is tensor parallelism, and how does it help serve large models? |
 | 491 | AI 基础设施与可扩展性 | 377 | What is pipeline parallelism? |
 | 492 | AI 基础设施与可扩展性 | 378 | How does continuous batching improve LLM inference throughput? |
 | 493 | AI 基础设施与可扩展性 | 379 | What is speculative decoding, and how does it speed up inference? |
-| 494 | AI 基础设施与可扩展性 | 待补 | How does Medusa (multi-head speculative decoding) work? |
-| 495 | AI 基础设施与可扩展性 | 待补 | How does EAGLE (feature-level speculative decoding) work? |
-| 496 | AI 基础设施与可扩展性 | 待补 | What is N-gram Speculation in LLMs, and how does it speed up generation? |
+| 494 | AI 基础设施与可扩展性 | 572 | How does Medusa (multi-head speculative decoding) work? |
+| 495 | AI 基础设施与可扩展性 | 573 | How does EAGLE (feature-level speculative decoding) work? |
+| 496 | AI 基础设施与可扩展性 | 574 | What is N-gram Speculation in LLMs, and how does it speed up generation? |
 | 497 | AI 基础设施与可扩展性 | 380 | What is KV cache, and how do you manage memory for it? |
 | 498 | AI 基础设施与可扩展性 | 381 | What is Paged Attention? |
-| 499 | AI 基础设施与可扩展性 | 待补 | How does GGUF work? |
+| 499 | AI 基础设施与可扩展性 | 575 | How does GGUF work? |
 | 500 | AI 基础设施与可扩展性 | 382 | How do you optimize inference for edge and mobile deployment? |
 | 501 | AI 基础设施与可扩展性 | 383 | What is model quantization (INT8, INT4, FP16, BF16), and how does it affect quality? |
 | 502 | AI 基础设施与可扩展性 | 384 | How do you implement auto-scaling for AI workloads? |
@@ -6327,7 +6472,7 @@
 | 509 | AI 基础设施与可扩展性 | 391 | How do you implement model caching to reduce redundant computations? |
 | 510 | AI 基础设施与可扩展性 | 392 | What is the difference between synchronous and asynchronous inference, and when do you use each? |
 | 511 | AI 基础设施与可扩展性 | 393 | What is FSDP (Fully Sharded Data Parallel), and how does it differ from DeepSpeed ZeRO? |
-| 512 | AI 基础设施与可扩展性 | 待补 | What are TTFT, TPOT, and throughput, and how do they trade against each other? |
+| 512 | AI 基础设施与可扩展性 | 576 | What are TTFT, TPOT, and throughput, and how do they trade against each other? |
 | 513 | AI 基础设施与可扩展性 | 394 | How do you monitor and profile LLM inference in production (TTFT, inter-token latency, GPU utilization)? |
 | 514 | AI 基础设施与可扩展性 | 395 | What is model routing at the infrastructure level, and how do you route requests based on complexity and cost? |
 | 515 | 编码与实践实现 | 396 | Implement a basic RAG pipeline using an embedding model and a vector database. |
