@@ -25,6 +25,7 @@
 * [AI 基础设施与可扩展性](#ai-基础设施与可扩展性)
 * [编码与实践实现](#编码与实践实现)
 * [行为与场景题](#行为与场景题)
+* [题号对照表](#题号对照表)
 * [参考资料](#参考资料)
 
 ### 维护者
@@ -45,6 +46,8 @@
 > 2026-10-18 增补：保留原 1–439 题编号与链接，新增 440–479 题按主题插入原章节，因此章内可能出现编号跳转。
 >
 > 2026-10-24 增补：同步上游 2026-10-22～10-23 的 README 更新，并补齐多模态 AI 一章此前缺失的上游题目。新增 480–485 题按上游顺序插入“多模态 AI”章节（480 位于 348 之后，481–485 位于 353 之后），已有题号不变；352 题补充流式 TTS 内容。协议细节注明版本；工程建议需按目标模型、服务版本和业务负载验证。
+>
+> 2026-10-24 增补（第 2 批）：对照上游全部 568 题，新增 486–514 题（LLM 基础章节缺失的 29 题），按上游顺序插入对应位置，已有题号不变。文末新增[题号对照表](#题号对照表)，列出本仓题号与上游题号的对应关系；其余未覆盖的上游题标注“待补”，后续批次补齐。
 
 每个问题都按五层组织：
 
@@ -107,6 +110,17 @@
 - 如果规模、延迟、隐私或准确率要求变化，答案应如何调整？
 - 如何用测试、监控和用户反馈验证这个回答在真实系统中成立？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。通用题的推理重点是先明确目标和约束，再给出可验证、可回滚的工程判断。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
+
+#### 486. 逐步讲解 decoder-only Transformer 的一次前向传播会发生什么。
+**答：** 以生成下一个 token 为例：①tokenizer 把文本切成 token id；②查 embedding 表得到每个位置的向量（若用 RoPE，位置信息在注意力里注入）；③依次经过 N 个 Transformer block，每个 block 先做归一化（现代模型多为 Pre-Norm + RMSNorm），再做带因果 mask 的多头自注意力（Q·Kᵀ/√dₖ → softmax → 加权求和 V），加残差；再归一化，经过前馈网络（常见 SwiGLU），再加残差；④最后一层输出经过最终归一化，乘以输出投影（LM head）得到词表大小的 logits；⑤只取最后一个位置的 logits，经 temperature/top-k/top-p 等采样得到下一个 token。
+**深入展开：** 推理时分两段：prefill 一次性并行处理整个提示并写入 KV cache；decode 每步只算一个新 token，复用缓存的 K、V。形状上，一层的输入输出都是 [batch, seq, d_model]，注意力内部按头拆成 [batch, heads, seq, head_dim]。训练时同一次前向会对所有位置同时计算 logits，并用交叉熵对“下一个 token”做监督。
+**后续追问：** 追问常见于：为什么需要因果 mask？残差和归一化各解决什么问题？KV cache 缓存的是哪些张量？LM head 是否与 embedding 共享权重（weight tying）？
+**上游参考：** [Decoding Transformer Architecture](https://outcomeschool.com/blog/decoding-transformer-architecture)
+**扩展问题：**
+- 如果把 Pre-Norm 换成 Post-Norm，前向流程和训练稳定性会有什么变化？
+- prefill 与 decode 阶段，一次前向的计算量和访存量各由什么决定？
+- 如何用一个最小实现（如 nanoGPT）验证你描述的张量形状？
+**推理回答：** 按“token → 向量 → N 层 block → logits → 采样”的数据流逐步讲，每一步说清输入输出形状和作用，再补推理时 prefill/decode 的区别。最终可以用张量形状检查和与参考实现的 logits 对比来验证理解。
 
 #### 6. LLM 中的 tokenization 是什么？
 **答：** Tokenization 是把文本切分成模型可处理的 token ID 的过程，token 可以是字符、子词、词或字节片段。它决定上下文长度如何消耗、罕见词如何表示、多语言效果和计费方式。工程上需要注意同一句话在不同 tokenizer 下 token 数可能差异很大，代码、中文、表格和特殊符号往往会显著增加 token 消耗。
@@ -178,6 +192,17 @@
 - 应该用哪些实验、指标或日志证明对“自注意力”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 487. Transformer 中的 Cross Attention 是什么？
+**答：** Cross attention 是一种注意力：Query 来自一个序列，Key 和 Value 来自另一个序列。典型位置是 encoder-decoder Transformer 的解码器：解码器当前层的隐状态生成 Q，编码器输出生成 K、V，于是每个待生成的 token 都能“查阅”源序列（例如翻译时的原句）。自注意力则是 Q、K、V 都来自同一序列。
+**深入展开：** 计算公式与自注意力相同：softmax(QKᵀ/√dₖ)V，但注意力矩阵形状是 [目标长度, 源长度]，不需要因果 mask（源序列可全部看到）。应用还包括：Stable Diffusion 的 U-Net 用 cross attention 把文本条件注入图像特征；部分多模态模型（如 Flamingo 风格）用 cross attention 把视觉特征接入语言模型。推理时编码器侧的 K、V 只需计算一次即可在每个解码步复用。
+**后续追问：** 会被追问：decoder-only 模型有没有 cross attention？（通常没有，条件信息直接拼在同一序列里做自注意力。）cross attention 与把图像 token 直接拼进序列相比各有什么取舍？
+**上游参考：** [Cross Attention in Transformers](https://outcomeschool.com/blog/cross-attention-in-transformers)
+**扩展问题：**
+- cross attention 中 K、V 的缓存与自注意力的 KV cache 有什么不同？
+- 在文生图模型里，cross attention map 可以用来做什么（例如可解释性或编辑）？
+- 源序列很长时，cross attention 的计算瓶颈在哪里？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先用“Q 来自哪里、K/V 来自哪里”一句话区分 cross attention 与自注意力，再举 encoder-decoder 翻译和扩散模型条件注入两个例子。可用注意力矩阵形状 [目标长度, 源长度] 自检。
+
 #### 13. 为什么 Transformer 中点积注意力要除以 √dₖ？
 **答：** 当 Key/Query 维度 dₖ 变大时，点积方差会增大，softmax 容易进入饱和区，导致梯度变小和训练不稳定。除以 √dₖ 可以把分数尺度归一到更稳定的范围，使注意力分布不会过早变得极端。这是缩放点积注意力的重要稳定性技巧。
 **深入展开：** 叙述类回答应补充背景、约束、关键决策、权衡、验证方式和最终结果，避免只说结论。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -218,6 +243,17 @@
 - 应该用哪些实验、指标或日志证明对“LLM 中的前馈网络是什么”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 488. 什么是生成式 AI（Generative AI）？
+**答：** 生成式 AI 指能生成新内容（文本、代码、图像、音频、视频等）的模型，它学习训练数据的分布，再从中采样出与训练数据相似但并非逐字复制的新样本。与之相对，判别式模型主要做分类或预测标签（例如判断邮件是否为垃圾邮件）。LLM、扩散模型、语音合成模型都属于生成式 AI。
+**深入展开：** 常见技术路线：自回归模型（逐 token 预测下一个，如 GPT 系列）、扩散模型（从噪声逐步去噪，如 Stable Diffusion）、VAE 与 GAN（较早的图像生成路线）。工程上，生成式 AI 的输出是概率采样的结果，因此需要处理幻觉、可控性、版权与安全等问题，并用评估集、护栏和人工审核兜底。
+**后续追问：** 会被追问：生成式与判别式模型的本质区别？生成式 AI 为什么会“幻觉”？如何评估生成质量？
+**上游参考：** [What is Generative AI?](https://outcomeschool.com/blog/what-is-generative-ai)
+**扩展问题：**
+- 生成式 AI 在企业场景中最常见的三类用途是什么？各自的主要风险是什么？
+- 为什么同一个提示多次调用会得到不同结果？如何让结果更稳定？
+- 生成式 AI 与传统规则系统相比，什么时候不该用？
+**推理回答：** 先给定义（学习分布、采样新内容），再用判别式模型做对比，最后列出主要技术路线和工程风险。回答是否到位，可以看能否举出一个具体场景并说明如何评估和控制输出。
+
 #### 17. LLM 的上下文窗口是什么？为什么重要？
 **答：** 上下文窗口是模型一次请求中能处理的最大 token 数，包括系统提示、历史对话、检索内容、用户输入和输出预算。它决定模型可见信息范围，也直接影响成本、延迟和遗忘风险。长上下文不能简单等同于高质量，因为模型仍可能出现“中间信息丢失”、检索噪声和注意力稀释。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -227,6 +263,17 @@
 - 如果把“LLM 的上下文窗口是什么”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“LLM 的上下文窗口是什么”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
+
+#### 489. 为什么 LLM 的上下文窗口是有限的？
+**答：** 主要有四个原因：①计算量：标准自注意力对序列长度 n 是 O(n²)，长度翻倍，注意力计算约翻四倍；②显存：KV cache 随长度线性增长，长上下文会挤占可并发的请求数；③训练分布：模型主要在某个长度范围内训练，超出训练长度后位置编码外推往往失效，质量下降；④质量：即使能放进去，模型也不一定能有效利用全部内容（如 lost in the middle）。
+**深入展开：** 扩展上下文的手段包括 FlashAttention（降低显存访问而非改变 O(n²) 计算量）、滑动窗口/稀疏注意力、RoPE 缩放（如位置插值、YaRN）配合长文本继续训练、GQA/MQA 和 KV cache 压缩。工程上，标称窗口与有效窗口不同，需要用自己的任务做长度扫描评估，而不是只看厂商标称值。
+**后续追问：** 会被追问：FlashAttention 是否把复杂度降成线性？上下文窗口和最大输出长度是一回事吗？长上下文与 RAG 如何取舍？
+**上游参考：** [Why is the context window limited in LLMs?](https://www.youtube.com/watch?v=CGIhxIaOg3M&lc)
+**扩展问题：**
+- 请估算把上下文从 8K 扩到 128K 时注意力计算和 KV cache 的增长倍数。
+- 为什么只修改 RoPE 配置而不继续训练，长上下文质量常常不理想？
+- 如何设计实验验证模型的“有效上下文长度”？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，把限制拆成计算、显存、训练分布和利用质量四类，每类说出一个对应的缓解手段。最终用长度扫描评估和显存估算验证结论。
 
 #### 18. LLM 中的 temperature 是什么？它如何影响输出？
 **答：** Temperature 用于缩放 logits，控制采样随机性。较低 temperature 让概率分布更尖锐，输出更稳定、适合事实问答和结构化任务；较高 temperature 增加多样性，适合创意写作和头脑风暴。生产系统通常把 temperature 与 top-p、输出校验和重试策略一起调优。
@@ -238,6 +285,17 @@
 - 应该用哪些实验、指标或日志证明对“LLM 中的 temperature 是什么”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 490. 为什么 LLM 生成第一个 token 比后续 token 慢？
+**答：** 第一个 token 之前必须完成 prefill：模型要对整个输入提示做一次完整的前向计算，并为每一层、每个位置写入 KV cache；提示越长，这一步越久。之后的 decode 阶段每步只处理一个新 token，复用已缓存的 K、V，所以单步快得多。因此首 token 延迟（TTFT）主要由提示长度、模型大小和排队时间决定，而后续 token 的间隔（TPOT/ITL）主要受显存带宽限制。
+**深入展开：** prefill 是计算密集型（大量矩阵乘可并行），decode 是访存密集型（每步都要读一遍全部权重和 KV cache）。降低 TTFT 的办法：缩短或复用提示（prefix/prompt caching）、chunked prefill 避免长提示阻塞其他请求、prefill/decode 分离部署、更快的硬件或更小的模型；流式输出能让用户更早看到内容，但不改变 TTFT 本身。
+**后续追问：** 会被追问：TTFT 和 TPOT 分别如何测量？为什么 prompt caching 主要降低 TTFT？批处理大小对两者有什么影响？
+**上游参考：** [The First-Token Latency Problem in LLMs](https://www.youtube.com/watch?v=XD8DD4cEHu0)
+**扩展问题：**
+- 同样 1000 token 的输出，提示长度从 1K 增加到 32K 时，哪段延迟变化最大？
+- 线上 TTFT 抖动但 TPOT 稳定，最可能的原因有哪些？
+- 为什么语音和聊天产品更关注 TTFT？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先区分 prefill 与 decode 两个阶段，再说明两者的瓶颈不同（计算 vs 访存），最后给出针对 TTFT 的优化手段。可用分别统计 TTFT 与 TPOT 的压测验证。
+
 #### 19. Top-p 和 Top-k 采样是什么？区别是什么？
 **答：** Top-k 只从概率最高的 k 个 token 中采样，k 固定；top-p 选择累计概率达到 p 的最小 token 集合，候选集大小随分布动态变化。Top-k 简单但可能截断合理长尾，top-p 更自适应。严谨场景通常降低随机性，创意场景可适度提高 top-p。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -248,6 +306,17 @@
 - 应该用哪些实验、指标或日志证明对“Top-p 和 Top-k 采样是什么、区别是什么”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 491. 比较 greedy decoding、beam search、top-k、top-p 和 temperature 采样。它们各自在什么情况下会失效？
+**答：** Greedy 每步取概率最高的 token，确定性强、速度快，但容易陷入重复、错过整体更优的序列。Beam search 同时保留 B 条候选序列，适合翻译等有“标准答案”的任务，但在开放式生成中容易产生平淡、重复的文本，且计算量更大。Top-k 只在概率最高的 k 个 token 中采样，k 固定，分布很尖时可能引入不合理的词，分布很平时又截断了合理选项。Top-p（nucleus）在累计概率达到 p 的最小集合中采样，能随分布自适应，但 p 过高会引入长尾噪声。Temperature 调整 softmax 的“尖锐度”：低温接近 greedy，高温更多样但更易出错。
+**深入展开：** 实践中常组合使用：temperature + top-p（或 top-k），再配合重复惩罚和停止条件。对需要确定性的任务（结构化抽取、代码修复）用低温或 greedy；对创意写作用较高温度和 top-p。需要注意：temperature=0 在一些服务端也不保证逐字可复现（批处理和浮点非确定性会带来差异）。
+**后续追问：** 会被追问：为什么 beam search 在聊天模型里很少用？top-k 与 top-p 同时设置时先后顺序如何？如何为一个任务选采样参数？
+**上游参考：** [How do Top-k and Top-p Sampling work?](https://outcomeschool.com/blog/how-do-top-k-and-top-p-sampling-work)
+**扩展问题：**
+- 给出一个 greedy 解码陷入重复循环的例子，并说明如何缓解。
+- 对 JSON 抽取任务，你会如何设置解码参数？为什么？
+- 如何离线评估不同采样参数对质量和多样性的影响？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，逐个说明每种方法的机制，再说失败模式，最后给出按任务类型选参数的规则。可用同一评估集对比不同参数下的正确率、重复率和多样性来验证。
+
 #### 20. 什么是 logits？它们如何用于文本生成？
 **答：** Logits 是模型在 softmax 前对每个词表 token 给出的未归一化分数。服务端会对 logits 应用 temperature、频率惩罚、logit bias、mask 等处理，再转成概率并选择下一个 token。理解 logits 有助于解释生成控制、结构化约束和解码策略。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -257,6 +326,28 @@
 - 如果把“logits”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“logits”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
+
+#### 492. LLM 中的 stop token 是什么？LLM 如何知道何时停止生成？
+**答：** Stop token 是词表里的特殊 token（例如 <|endoftext|>、</s> 或对话模板中的 <|eot_id|>），表示“这段输出到此结束”。模型在训练和指令微调中学会在回答完成时生成这个 token；推理框架在采样到它时停止生成。此外，生成也可能因为达到 max_tokens 上限或命中调用方设置的停止条件而结束。
+**深入展开：** 对话模型的停止依赖聊天模板：如果推理时使用的模板与训练时不一致，模型可能不生成结束 token，导致一直生成或“替用户说话”。工程上要检查：tokenizer 配置里的 eos_token_id 是否正确、服务端是否把所有结束 token 都加入停止集合、max_tokens 是否合理，并在返回中区分 finish_reason（正常结束 vs 截断）。
+**后续追问：** 会被追问：为什么开源模型换了推理框架后不停止？finish_reason=length 时该怎么处理？
+**上游参考：** [Stop Tokens in LLMs](https://outcomeschool.com/blog/stop-tokens-in-llms)
+**扩展问题：**
+- 模型输出被截断时，如何在应用层检测并补救？
+- 多个结束 token（如 eos 与 eot）同时存在时，服务端如何配置？
+- 微调时如果漏加结束 token，会出现什么现象？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先说明停止的三种来源（结束 token、长度上限、停止条件），再说明聊天模板和 tokenizer 配置为什么会影响停止行为。可通过检查 finish_reason 分布和模板一致性来验证。
+
+#### 493. stop token 与 stop sequence 有什么区别？
+**答：** Stop token 是模型词表中的一个特殊 token，由模型自己学会生成，表示回答自然结束。Stop sequence 是调用方在请求中指定的一个或多个字符串（例如 "\nUser:" 或 "```"），推理服务在生成的文本中检测到它时就截停，它不需要是单个 token，也不依赖模型训练。
+**深入展开：** Stop sequence 的匹配发生在解码后的文本层面，可能跨越多个 token；服务端通常不会把命中的 stop sequence 本身返回给调用方（不同 API 行为略有差异，需要查看文档确认）。用途包括：防止模型在少样本提示里继续生成下一轮示例、在 ReAct 格式中于 "Observation:" 处停下交给工具执行。它是一种调用方的控制手段，不能替代正确的聊天模板和结束 token 配置。
+**后续追问：** 会被追问：stop sequence 跨 token 时如何高效匹配？流式输出时如何避免把半截 stop sequence 发给用户？
+**上游参考：** [Stop Tokens in LLMs](https://outcomeschool.com/blog/stop-tokens-in-llms)
+**扩展问题：**
+- 在 ReAct Agent 中为什么常把 "Observation:" 设为 stop sequence？
+- stop sequence 设得过于常见（如 "\n"）会带来什么问题？
+- 如何测试 stop sequence 在流式和非流式两种模式下行为一致？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，用“谁定义、在哪一层生效、是否依赖训练”三个维度区分两者，再举一个 stop sequence 的典型用途。可用流式输出的边界用例做测试验证。
 
 #### 21. Transformer 中的跳跃连接或残差连接是什么？
 **答：** 残差连接把层输入直接加到层输出上，使模型学习增量变换而不是完全重建表示。它缓解深层网络的梯度消失，提升训练稳定性，也让信息可以跨层流动。现代 Transformer 通常结合 LayerNorm/RMSNorm 使用 pre-norm 或 post-norm 结构。
@@ -298,6 +389,28 @@
 - 应该用哪些实验、指标或日志证明对“KV cache”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 494. 估算服务一个大模型所需的 KV cache 显存。它如何限制 batch size 和上下文长度？
+**答：** 每个 token 的 KV cache 大小 ≈ 2（K 和 V）× 层数 × KV 头数 × 每头维度 × 每个元素字节数。以一个 80 层、8 个 KV 头（GQA）、head_dim=128、FP16（2 字节）的 70B 级模型为例：2×80×8×128×2 = 327,680 字节，约 320 KiB/token；一条 4K token 的序列约 1.25 GiB，32 条并发就约 40 GiB。总显存 ≈ 权重 + KV cache + 激活与碎片，所以在权重固定后，剩余显存 ÷ 每序列 KV 大小，就决定了“并发数 × 上下文长度”的上限：上下文越长，能同时服务的请求越少。
+**深入展开：** 降低 KV cache 的手段：GQA/MQA（减少 KV 头数）、KV cache 量化（FP8/INT8）、PagedAttention 减少碎片、前缀共享、滑动窗口或压缩注意力、把冷数据卸载到 CPU。容量规划时应按目标并发和 p95 上下文长度计算，而不是只看平均长度，并预留碎片和峰值余量。
+**后续追问：** 会被追问：MHA 换成 GQA 后 KV cache 缩小多少？为什么长上下文场景吞吐会明显下降？
+**上游参考：** [KV Cache Compression](https://outcomeschool.com/blog/kv-cache-compression)
+**扩展问题：**
+- 请把上面的例子改成 MHA（64 个 KV 头）重新估算，并比较差异。
+- KV cache 量化到 FP8 后，对质量和吞吐分别可能有什么影响？
+- 如何在线上监控 KV cache 利用率并据此调整 max_num_seqs？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先写出每 token KV 大小的公式并代入一组具体配置算出数值，再把显存预算换算成并发与长度的约束，最后列出压缩手段。可用推理框架报告的 KV block 数与计算值对比验证。
+
+#### 495. KV Cache 压缩有哪些方法？
+**答：** KV cache 压缩是在尽量不损失质量的前提下减少每个 token 缓存的 K、V 占用。主要方向：①减少头数：MQA/GQA 让多个查询头共享 KV 头；②低秩/潜变量：如 DeepSeek 的 MLA 把 KV 压成低维潜向量再还原；③量化：把 KV 从 FP16 降到 FP8/INT8/INT4；④淘汰或选择：只保留重要 token（如注意力分数高的、attention sink 加最近窗口，代表方法有 H2O、StreamingLLM）；⑤跨层共享或合并相似 KV。
+**深入展开：** 架构类方法（GQA、MLA）需要在训练时就采用；量化和淘汰类方法多可在推理时加入，但要评估长文检索、多跳推理等任务的质量下降。淘汰策略的风险在于被丢弃的 token 后来又变得重要。评估时要看质量（长上下文基准、业务评测）、显存节省和吞吐提升三者。
+**后续追问：** 会被追问：GQA 与 MLA 的区别？KV 量化与权重量化有何不同？淘汰 token 后会不会影响事实准确性？
+**上游参考：** [KV Cache Compression](https://outcomeschool.com/blog/kv-cache-compression)
+**扩展问题：**
+- 为长文档问答选择 KV 压缩方案时，你会优先尝试哪种？为什么？
+- 如何设计实验检测 KV 淘汰策略对“针在草堆”类任务的影响？
+- KV cache 压缩与 PagedAttention 解决的是同一个问题吗？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，按“减头数、低秩、量化、淘汰、共享”五类组织答案，说明每类是否需要重新训练以及主要风险。用长上下文评测和显存/吞吐数据共同验证。
+
 #### 25. 自回归语言建模与掩码语言建模有什么区别？
 **答：** 自回归建模按从左到右预测下一个 token，适合生成；掩码语言建模随机遮住输入 token 并预测被遮住内容，适合理解和表示学习。前者训练目标与聊天生成一致，后者能利用双向上下文但不天然适合逐 token 生成。BERT 属于典型 MLM，GPT 属于典型自回归模型。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -338,6 +451,17 @@
 - 应该用哪些实验、指标或日志证明对“Dense 模型与 Sparse 模型有什么区别”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 496. DeepSeek-V4 是如何工作的？
+**答：** 根据上游资料，DeepSeek-V4 是开放权重的 MoE 模型家族，原生支持 100 万 token 上下文，有两个版本：V4-Pro（总参数 1.6T、激活 49B、61 层）和 V4-Flash（总参数 284B、激活 13B、43 层），预训练语料超过 32T token。核心变化是混合注意力：CSA（Compressed Sparse Attention）把每 m 个 token 压成一个 KV 条目，再由 FP4 精度的 Lightning Indexer 打分选 top-k；HCA（Heavily Compressed Attention）以 128 个 token 为一组重度压缩后做稠密注意力；两者在层间交替使用，并保留 128 token 的滑动窗口和可学习的 attention sink。上游给出的数字是：在 1M 上下文下，V4-Pro 的每 token 计算量约为 DeepSeek-V3.2 的 27%，KV cache 约为 10%；V4-Flash 分别约为 10% 和 7%。
+**深入展开：** 其他改动：①mHC（Manifold-Constrained Hyper-Connections）把残差流加宽为 4 路，并把混合矩阵约束为双随机矩阵，使谱范数不超过 1，深层训练更稳定；②大部分参数用 Muon 优化器（Newton-Schulz 正交化更新），embedding、输出头、RMSNorm 等仍用 AdamW；③对 MoE 专家权重和 CSA indexer 做 FP4 量化感知训练；④预训练序列长度从 4K 逐步扩到 16K、64K、1M，并用 Anticipatory Routing 和 SwiGLU Clamping 抑制损失尖峰；⑤后训练先按领域训练专家（SFT + GRPO），再用 On-Policy Distillation 合并为一个模型；⑥推理提供 Non-think、Think High、Think Max 三种推理模式。
+**后续追问：** 会被追问：CSA 与 HCA 的取舍是什么？On-Policy Distillation 与普通蒸馏有何不同？这些数字是否已被独立复现？（回答时应注明数据来源于官方报告/上游资料。）
+**上游参考：** [DeepSeek-V4 Architecture Explained](https://outcomeschool.com/blog/decoding-deepseek-v4)
+**扩展问题：**
+- CSA 的 top-k 选择可能漏掉哪些信息？滑动窗口分支如何弥补？
+- 为什么双随机矩阵约束能稳定很深的残差网络？
+- 如果要在自家服务中部署 V4-Flash，你会先验证哪些指标？
+**推理回答：** 先给出模型家族与规模的事实，再按“注意力 → 残差 → 优化器 → 量化 → 训练流程 → 推理模式”逐层讲解，并明确数字来自上游资料。部署前应以自己的长上下文评测和成本数据验证。
+
 #### 29. 什么是 FlashAttention？
 **答：** FlashAttention 用分块和在线 softmax 减少 HBM 读写，避免物化完整注意力矩阵，计算的是精确注意力而非稀疏近似；浮点运算顺序仍可能造成数值差异。它减少中间存储和 IO，但标准稠密全注意力的算术复杂度仍近似为序列长度的二次方，实际加速取决于硬件、序列长度和实现。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -368,6 +492,28 @@
 - 应该用哪些实验、指标或日志证明对“GQA”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 497. Sliding Window Attention 是如何工作的？
+**答：** 滑动窗口注意力（SWA）让每个 token 只关注它前面固定窗口 W 内的 token，而不是全部历史。这样每个 token 的注意力计算量是 O(W)，整段是 O(n·W)，KV cache 也只需保留最近 W 个位置（可用环形缓冲区实现）。虽然单层只看 W 个 token，但多层堆叠后感受野会扩大：第 L 层的信息理论上可以传播到约 L×W 的距离。
+**深入展开：** Mistral 7B 是使用 SWA 的代表模型之一（窗口 4096）；也有模型把滑动窗口层与全局注意力层交替使用（如 Gemma 2/3 一类设计），兼顾局部效率与远距离信息。局限：远距离信息只能逐层间接传递，精确检索很远处的细节会变差；常与 attention sink（保留开头几个 token）结合，避免窗口滑走后注意力分布失稳。
+**后续追问：** 会被追问：SWA 与稀疏注意力、线性注意力有何区别？为什么要和全局注意力层混用？
+**上游参考：** [How does Sliding Window Attention work?](https://outcomeschool.com/blog/how-does-sliding-window-attention-work)
+**扩展问题：**
+- 窗口大小 W 如何影响质量、显存和吞吐？
+- SWA 模型在“针在草堆”测试中可能出现什么现象？
+- 滑动窗口与 attention sink 结合时，KV cache 如何组织？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先讲每个 token 只看最近 W 个位置这一规则，再推出复杂度和 KV cache 的变化，最后说明多层感受野、混合全局层和局限。可用长距离检索评测验证。
+
+#### 498. Attention Sink 是如何工作的？
+**答：** 研究发现，自回归 LLM 往往会把大量注意力分给序列最开头的几个 token（即使它们语义上不重要），这些位置就像“注意力的蓄水池”。原因之一是 softmax 要求注意力权重之和为 1，当当前位置没有特别需要关注的内容时，模型学会把多余的注意力“倒”在始终可见的开头 token 上。StreamingLLM 利用这一点：在滑动窗口推理时永久保留开头的几个 sink token 的 KV，再加最近窗口，就能让模型在远超训练长度的流式输入上保持稳定，而只用滑动窗口时一旦开头 token 被移出，困惑度会急剧上升。
+**深入展开：** 另一种做法是在模型中显式加入可学习的 sink（例如在 softmax 分母中加入可学习的 sink logit，或加入专门的 sink token），让注意力权重之和可以小于 1。注意：attention sink 让模型能稳定地持续生成，但并不能让模型记住被淘汰的中间内容，它不等于扩展了有效上下文。
+**后续追问：** 会被追问：为什么是开头 token 而不是其他位置？sink 与 KV 淘汰策略如何配合？
+**上游参考：** [How do Attention Sinks work?](https://outcomeschool.com/blog/how-do-attention-sinks-work)
+**扩展问题：**
+- 如果去掉 sink token 只保留最近窗口，会观察到什么现象？
+- 可学习 sink 与保留首 token 两种做法各有什么优缺点？
+- 如何用注意力可视化验证模型存在 attention sink？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先描述现象（注意力集中在开头 token），再解释 softmax 和为 1 的原因，最后说明 StreamingLLM 等应用及其边界。用困惑度随长度的曲线和注意力热图验证。
+
 #### 32. RoPE 如何工作？为什么常优于可学习位置 embedding？
 **答：** RoPE 通过对 Query 和 Key 向量按位置进行旋转，把相对位置信息编码进点积注意力中。它天然表达相对位置，外推能力通常比固定长度可学习位置 embedding 更好。实际长上下文扩展还需要配合 RoPE scaling、训练策略和评估，不能只靠公式外推。
 **深入展开：** 叙述类回答应补充背景、约束、关键决策、权衡、验证方式和最终结果，避免只说结论。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -378,6 +524,17 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
 
+#### 499. 解释 Layer Normalization。
+**答：** Layer Normalization（LayerNorm）对单个样本、单个位置的隐藏向量在特征维度上做归一化：先减去该向量各维的均值、除以标准差（加 ε 防止除零），再乘以可学习的缩放 γ、加偏置 β。它与 Batch Normalization 的区别在于：BatchNorm 沿 batch 维度统计均值方差，依赖 batch 大小，训练和推理行为不同；LayerNorm 只看单个样本自身，不依赖 batch，适合变长序列和自回归推理，因此成为 Transformer 的标准选择。
+**深入展开：** 作用是稳定各层输入的尺度，缓解梯度爆炸/消失，让深层网络更容易训练。放置位置有 Post-Norm（残差相加之后）和 Pre-Norm（子层之前）两种；现代 LLM 多用 Pre-Norm，并常用更简单的 RMSNorm（只按均方根缩放，不减均值）。
+**后续追问：** 会被追问：为什么 Transformer 不用 BatchNorm？LayerNorm 与 RMSNorm 的区别？γ、β 的作用是什么？
+**上游参考：** [Batch Normalization vs Layer Normalization](https://outcomeschool.com/blog/batch-normalization-vs-layer-normalization)
+**扩展问题：**
+- 写出 LayerNorm 的公式，并说明在 [batch, seq, d_model] 张量上沿哪一维计算。
+- LayerNorm 在混合精度训练中为什么常保持 FP32 计算？
+- 如果去掉 LayerNorm，深层 Transformer 训练时可能出现什么问题？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先给出公式和统计维度，再与 BatchNorm 对比说明为什么适合 Transformer，最后提到放置位置和 RMSNorm 变体。可用简单实现验证输出每个位置均值约为 0、方差约为 1。
+
 #### 33. 什么是 RMSNorm？
 **答：** RMSNorm 使用向量均方根进行归一化，不减去均值，相比 LayerNorm 更简单、计算略省。它稳定激活尺度，帮助深层 Transformer 训练。许多现代 LLM 采用 RMSNorm，因为它在质量和效率之间有较好平衡。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 LLM 基础题中，还要把它连接到训练目标、推理路径、上下文窗口、显存/延迟/成本和质量影响；涉及数学机制时，说明公式直觉和工程后果。
@@ -387,6 +544,27 @@
 - 如果把“RMSNorm”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“RMSNorm”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
+
+#### 500. 为什么现代 Transformer 使用 Pre-LayerNorm（Pre-Norm）而不是 Post-LayerNorm？
+**答：** 原始 Transformer 采用 Post-Norm：x = Norm(x + Sublayer(x))，归一化放在残差相加之后。Pre-Norm 改为 x = x + Sublayer(Norm(x))，归一化放在子层之前，残差路径上不经过归一化。这样梯度可以沿残差“直通”到浅层，深层网络训练更稳定，对学习率 warmup 的依赖更小，更容易扩展到几十上百层，因此 GPT-2 之后的大多数 LLM 采用 Pre-Norm（通常配合 RMSNorm，并在最后一层后加一个最终归一化）。
+**深入展开：** 代价是：有研究指出 Pre-Norm 深层的贡献可能被稀释（残差流不断累加，后面层的相对影响变小），在相同深度下最终效果有时略逊于调好的 Post-Norm。因此也出现了折中方案（如 DeepNorm、在子层输出再加归一化的 sandwich norm 等）。
+**后续追问：** 会被追问：Post-Norm 为什么需要较长 warmup？Pre-Norm 为什么最后要加一层归一化？
+**上游参考：** [RMSNorm (Root Mean Square Layer Normalization)](https://outcomeschool.com/blog/rmsnorm-root-mean-square-layer-normalization)
+**扩展问题：**
+- 画出 Pre-Norm 与 Post-Norm 两种 block 的数据流图。
+- 如果训练一个 100 层的模型，选择 Post-Norm 需要哪些额外措施？
+- 如何通过训练曲线判断归一化位置导致的不稳定？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，写出两种公式，从梯度是否经过归一化来解释稳定性差异，再说明 Pre-Norm 的代价和折中方案。可通过对比两种配置的损失曲线和梯度范数验证。
+
+#### 501. 什么是 scaling laws（Chinchilla）？它们如何指导模型规模与训练数据量的决策？
+**答：** Scaling laws 描述模型损失随参数量 N、训练 token 数 D 和计算量 C 增长而按幂律下降的经验规律。DeepMind 的 Chinchilla 研究（2022）发现，在固定计算预算下，参数量和训练 token 数应大致同比例增长，经验比例约为每个参数 20 个训练 token；按此训练的 70B Chinchilla（约 1.4T token）优于参数更多但训练数据相对不足的 280B Gopher。这修正了此前更偏向“加大参数”的结论（Kaplan 等，2020）。
+**深入展开：** 工程含义：①训练预算固定时，不要只堆参数，要配足数据；②但“计算最优”不等于“部署最优”：如果模型要服务大量推理请求，常会刻意训练更小的模型并用远超 20 倍的数据（如 Llama 系列），以换取更低的推理成本；③数据质量、重复与去重、数据配比也会改变曲线；④scaling law 主要预测预训练损失，下游能力和涌现行为不一定平滑可预测。
+**后续追问：** 会被追问：计算预算 C ≈ 6ND 是怎么来的？为什么很多开源模型“过度训练”？数据不够时怎么办（多 epoch、合成数据）？
+**扩展问题：**
+- 给定一个计算预算，如何用 Chinchilla 比例估算合适的参数量和 token 数？
+- 如果推理量很大，你会如何调整训练配置？为什么？
+- scaling law 在微调或强化学习阶段是否同样适用？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先说明幂律关系和 Chinchilla 的核心结论（约 20 token/参数），再区分“训练计算最优”和“推理成本最优”。可以用小规模实验拟合曲线、外推并与实际结果对比来验证。
 
 #### 34. LLM 总是不遵循指令，如何让它稳定输出结构化格式？
 **答：** 应组合使用明确 schema、少量示例、低 temperature、JSON schema/function calling/grammar constrained decoding、输出解析器和失败重试。提示中要说明字段含义、必填约束、禁止额外文本，并在服务端做 schema 校验。严肃生产场景不要只靠“请输出 JSON”，应让协议层强制格式。
@@ -567,6 +745,149 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“LLM 基础”中的模型原理层，决定能力边界、上下文消耗、推理成本和质量上限。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“准确率、困惑度/任务分数、延迟、显存占用、输出稳定性”验证答案，而不是只依赖主观感觉。
+
+#### 502. 什么是小语言模型（SLM）？
+**答：** 小语言模型通常指参数规模较小（大致从几亿到几十亿）的语言模型，例如 Phi、Gemma、Llama 小尺寸版本、Qwen 小尺寸版本等。它们通过高质量数据、蒸馏和更长的训练，在特定任务上接近更大模型的效果，同时显存占用小、延迟低、成本低，可以在笔记本、手机或边缘设备上运行。
+**深入展开：** 适用场景：分类、抽取、路由、简单问答、端侧隐私敏感任务、高并发低成本服务，以及作为大模型系统中的“前置筛选”或草稿模型（投机解码）。局限：知识面和复杂多步推理能力弱于大模型，长上下文和多语言能力也可能受限；通常需要针对任务微调或配合 RAG。选型时要用自己的评估集比较质量、延迟和成本，而不是只看通用基准。
+**后续追问：** 会被追问：SLM 如何训练才能“小而强”？什么时候应该用 SLM 而不是调用大模型 API？
+**上游参考：** [Small Language Models (SLMs)](https://outcomeschool.com/blog/small-language-models-slms)
+**扩展问题：**
+- 设计一个“SLM 先处理、不确定时升级到大模型”的路由方案。
+- 在手机端部署 SLM 需要做哪些优化（量化、格式、运行时）？
+- 如何评估微调后的 SLM 是否已足够替代大模型？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先给出 SLM 的规模与代表模型，再说明优势、适用场景和局限，最后给出选型验证方法。用任务评估集上的质量、延迟和单次成本对比来验证。
+
+#### 503. 什么是大型推理模型（LRM）？
+**答：** 大型推理模型（Large Reasoning Models）是专门强化“先思考、再回答”能力的 LLM，例如 OpenAI o 系列、DeepSeek-R1 等。它们在给出最终答案前会生成较长的中间推理过程（思维链），并通过强化学习（常用可验证奖励，如数学答案是否正确、代码是否通过测试）训练模型在推理过程中自我检查、回溯和尝试不同思路。它们体现了“测试时计算”扩展：允许模型在推理时多思考，可以换来更高的正确率。
+**深入展开：** 优势：在数学、编程、规划、多步逻辑等任务上明显优于普通指令模型。代价：输出 token 多、延迟高、成本高；在简单问题上可能“过度思考”；推理过程不一定忠实反映真实计算过程。工程上常按难度路由：简单任务用普通模型，复杂任务用推理模型，并设置推理预算（如 reasoning effort 或最大思考 token）。
+**后续追问：** 会被追问：LRM 与 CoT 提示有什么区别？推理 token 如何计费？如何控制过度思考？
+**上游参考：** [Large Reasoning Models (LRMs)](https://outcomeschool.com/blog/large-reasoning-models)
+**扩展问题：**
+- 如何为一个客服系统决定哪些请求交给推理模型？
+- 推理模型的思维链能否直接展示给用户？有哪些风险？
+- 如何评估更多推理 token 带来的收益是否值得？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先定义 LRM（训练出的长推理能力 + 测试时计算），再说明训练方式、优势和成本，最后给出按难度路由的工程做法。用不同推理预算下的正确率-成本曲线验证。
+
+#### 504. 什么是 Jev 和 System One 模型？
+**答：** 根据上游资料，System One Model 是一种不生成文本的 AI 模型：输入一段状态（文本、文本列表或 JSON）和若干问题及其允许的答案，输出每个问题的类型化答案（从固定选项中选一个、在固定范围内打分、或是/否）以及对应概率。名称来自 Kahneman 的“系统 1（快速直觉）/系统 2（缓慢推理）”。Jev 是 TypeSafe AI 于 2026 年 9 月 15 日发布的第一个 System One 模型：它在一次并行前向中同时回答多个问题，而不是逐 token 生成；由于只对允许的选项打分，输出永远不会超出选项（不会出现格式或类型错误），但仍可能选错。
+**深入展开：** 上游资料提到的特点：用 RLCD（Reinforcement Learning for Calibrated Decisions）训练，使概率经过校准（说 90% 时大约 90% 正确），因此可以写“概率 > 0.9 才自动处理，否则转人工”的逻辑；厂商报告延迟约 70–500 ms、比同等智能的 LLM 快 40–200 倍，价格为每百万输入 token 0.042 美元、输出免费；单个选择题最多 255 个选项，目前只接受文本输入，不能写文本、不能做开放式推理、也不给出理由。典型用法是与 LLM 配合：Jev 做路由、分类、打分、护栏判断，LLM 负责写回复。
+**后续追问：** 会被追问：类型化输出与让 LLM“输出 JSON”有何不同？“不会幻觉”具体指什么？（指不会给出选项之外的答案，不代表一定正确。）厂商数字是否经过独立验证？
+**上游参考：** [Jev and System One Models Explained](https://outcomeschool.com/blog/jev-and-system-one-models-explained)
+**扩展问题：**
+- 在客服工单路由中，如何用校准概率设计自动处理与转人工的阈值？
+- 如何离线验证一个分类模型的概率是否校准（如可靠性图、ECE）？
+- 哪些任务不适合用 System One 模型？
+**推理回答：** 先说明 System One 模型的输入输出形式和与 LLM 的根本区别，再介绍 Jev 的发布方与关键特性，并明确性能和价格数字来自厂商/上游资料。应用前应在自己的数据上验证准确率和校准度。
+
+#### 505. 什么是自回归模型？
+**答：** 自回归模型把一个序列的联合概率分解为逐步的条件概率：P(x₁,…,xₙ) = ∏ P(xₜ | x₁,…,xₜ₋₁)，即每一步都基于之前已生成的内容预测下一个元素。GPT 系列等 decoder-only LLM 都是自回归模型：训练时用因果 mask 让每个位置只看到前文并预测下一个 token；生成时把采样出的 token 追加到输入，再预测下一个，循环直到结束。
+**深入展开：** 优点：训练目标简单（下一个 token 预测）、可以利用海量无标注文本、生成灵活。缺点：生成只能顺序进行，延迟随输出长度线性增长；早期错误会影响后续（误差累积）；只能从左到右利用上下文。加速手段包括 KV cache、投机解码、多 token 预测等；非自回归或扩散语言模型则尝试并行生成。
+**后续追问：** 会被追问：自回归与掩码语言模型（如 BERT）有何区别？为什么训练可以并行而生成不能？
+**上游参考：** [Autoregressive Models](https://outcomeschool.com/blog/autoregressive-models)
+**扩展问题：**
+- 用一句话写出自回归分解公式，并说明训练时“teacher forcing”是什么意思。
+- 为什么自回归生成的延迟随输出长度增长？有哪些缓解办法？
+- 图像或语音也可以用自回归方式生成吗？举例说明。
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先写出概率分解公式，再分别说明训练和生成的过程，最后讲优缺点与加速手段。可用一个小模型逐步生成并观察 KV cache 复用来验证。
+
+#### 506. 什么是近端策略优化（PPO）？
+**答：** PPO（Proximal Policy Optimization）是一种策略梯度强化学习算法，在 LLM 中常用于 RLHF：策略模型生成回答，奖励模型打分，PPO 用这些奖励更新策略。它的核心是“裁剪目标”：计算新旧策略的概率比 r = π_new/π_old，把 r 限制在 [1−ε, 1+ε]（常用 ε=0.2）范围内，避免一次更新把策略改得太远，从而让训练更稳定。还会用一个价值模型（critic）估计优势（常用 GAE），并在 RLHF 中加入与参考模型（SFT 模型）的 KL 惩罚，防止模型为了刷奖励而偏离太多。
+**深入展开：** RLHF 中的 PPO 通常同时涉及四个模型：策略模型、参考模型、奖励模型和价值模型，显存和工程复杂度高，对超参数敏感。常见问题有奖励黑客（reward hacking）、训练不稳定、KL 系数难调。DPO、GRPO 等方法分别通过去掉在线 RL 或去掉价值模型来降低复杂度。
+**后续追问：** 会被追问：裁剪目标为什么能稳定训练？KL 惩罚的作用？PPO 与 DPO、GRPO 的区别？
+**上游参考：** [Proximal Policy Optimization (PPO)](https://outcomeschool.com/blog/proximal-policy-optimization-ppo)
+**扩展问题：**
+- 写出 PPO 的裁剪目标函数，并解释 ε 的作用。
+- RLHF 中奖励一直上升但人工评估变差，可能是什么原因？如何处理？
+- 为什么 PPO 在 LLM 上的显存开销很大？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先说明 PPO 在 RLHF 中的位置，再讲裁剪比率、价值模型和 KL 惩罚三个关键机制，最后给出代价和替代方法。用奖励、KL 和人工评估的联合曲线验证训练是否健康。
+
+#### 507. 什么是直接偏好优化（DPO）？
+**答：** DPO（Direct Preference Optimization）是一种不需要单独训练奖励模型、也不需要在线强化学习的偏好对齐方法。它直接使用偏好数据（同一提示下的 chosen 与 rejected 回答），通过一个类似分类的损失来训练模型：提高策略模型相对参考模型在 chosen 回答上的对数概率比，降低在 rejected 回答上的对数概率比，超参数 β 控制偏离参考模型的程度。论文证明，在 RLHF 的 KL 约束目标下，这等价于隐式地学习了一个奖励模型。
+**深入展开：** 优点：实现简单、训练稳定、只需策略模型和参考模型，算力和工程成本远低于 PPO。局限：依赖离线偏好数据的质量和覆盖面；无法像在线 RL 那样从模型自己的新输出中持续学习；可能出现 chosen 回答概率也一起下降、或偏好更长回答的问题。衍生方法包括 IPO、KTO、SimPO、ORPO 等。
+**后续追问：** 会被追问：DPO 为什么不需要奖励模型？β 设大设小分别会怎样？DPO 什么时候不如在线 RL？
+**上游参考：** [Direct Preference Optimization (DPO)](https://outcomeschool.com/blog/direct-preference-optimization-dpo)
+**扩展问题：**
+- 写出 DPO 损失的形式，并解释每一项的含义。
+- 偏好数据中 chosen 与 rejected 长度差异很大，会对 DPO 带来什么影响？
+- 如何评估 DPO 训练后模型是否真的更符合偏好？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先说明 DPO 用偏好对直接优化、无需奖励模型和在线 RL，再讲 β 与参考模型的作用，最后说明局限与变体。用人工或模型评审的胜率、长度分布和通用能力回归测试验证。
+
+#### 508. 什么是组相对策略优化（GRPO）？
+**答：** GRPO（Group Relative Policy Optimization）是 DeepSeek 在 DeepSeekMath 中提出、并在 DeepSeek-R1 中使用的强化学习算法。对每个提示，策略模型一次采样一组（如 G 个）回答，用奖励函数分别打分，然后用组内奖励的均值和标准差做归一化，得到每个回答的相对优势：比组平均好的回答被强化，差的被抑制。它沿用 PPO 式的裁剪目标和 KL 约束，但去掉了价值模型（critic），因此显存和计算更省。
+**深入展开：** GRPO 特别适合有可验证奖励的任务（数学答案是否正确、代码是否通过测试），即 RLVR。代价是每个提示要采样多次回答，生成开销增大；如果一组回答奖励完全相同（全对或全错），组内优势为零，这个提示就提供不了学习信号，因此需要控制题目难度分布。
+**后续追问：** 会被追问：GRPO 相比 PPO 省掉了什么、又增加了什么？组大小如何选？为什么适合推理模型训练？
+**上游参考：** [Group Relative Policy Optimization (GRPO)](https://outcomeschool.com/blog/group-relative-policy-optimization-grpo)
+**扩展问题：**
+- 一组回答奖励全相同会发生什么？如何缓解？
+- GRPO 中的 KL 惩罚起什么作用？可以去掉吗？
+- 如何为代码生成任务设计 GRPO 的奖励函数并防止奖励黑客？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先描述“组采样 + 组内归一化优势”这一核心机制，再与 PPO 对比（去掉 critic），最后说明适用场景和失效情况。用奖励曲线、组内方差和验证集正确率验证训练效果。
+
+#### 509. 什么是递归语言模型（RLM）？
+**答：** 根据上游资料，递归语言模型（Recursive Language Model）是一种使用 LLM 的方式：不把超长输入直接塞进上下文，而是把完整输入作为变量（如 context）放在 Python 环境中，主模型只收到一个说明该变量和可用函数（如 call_llm(prompt)）的短提示。主模型通过写代码来查看、切分输入，并对每个片段调用子模型（或自身）；子调用返回简短结果，主模型再汇总。子调用本身也可以继续递归切分，形成树状结构，递归深度由模型根据输入和问题自行决定。
+**深入展开：** 它要解决的是：上下文窗口有限、上下文越长质量越差（context rot）、成本和延迟上升。与固定大小分块不同，RLM 由模型自己决定如何切分、对每片问什么；与 RAG 相比，RAG 先由检索步骤挑选片段，RLM 则让模型自己探索数据并可执行代码。局限：需要搭建代码执行环境；一次提问可能触发大量模型调用，较慢；子调用的错误会累积；模型自己写的代码较难调试。适合超长文档问答、大型代码库分析、长会议纪要总结、多文件比较等可拆分任务；短输入直接调用即可。
+**后续追问：** 会被追问：RLM 与普通 Agent 的工具调用有何关系？如何控制递归调用的成本？代码执行环境如何保证安全？
+**上游参考：** [Recursive Language Models (RLMs)](https://outcomeschool.com/blog/recursive-language-models)
+**扩展问题：**
+- 为 RLM 设计调用次数和 token 预算上限，应如何实现？
+- 子调用返回错误结果时，主模型如何发现并纠正？
+- 在代码库安全审计场景中，RLM 与 RAG 各自的优缺点是什么？
+**推理回答：** 先说明 RLM 的核心思路（输入放在环境变量中、模型写代码递归调用子模型），再与分块和 RAG 对比，最后讲适用场景和局限。用长输入任务上的正确率、调用次数和总成本验证效果。
+
+#### 510. LLM 中的持续学习（Continual Learning）是什么？
+**答：** 持续学习指模型在部署后不断从新数据、新任务中学习，同时不忘记已经学会的能力。对 LLM 来说，难点是灾难性遗忘：在新数据上继续训练会覆盖旧知识或通用能力。常见做法：①回放（replay）：新数据中混入一部分旧数据或通用数据；②正则化：限制关键参数的变化（如 EWC）或加 KL 约束；③参数隔离：用 LoRA/adapter 为新任务增加少量参数，基座冻结；④定期继续预训练（continual pre-training）补充新领域知识。
+**深入展开：** 工程上，很多“让模型知道新知识”的需求用 RAG 或工具调用比持续训练更便宜、更可控，因为知识可以随时更新和撤回。若必须训练，需要建立回归评估集，覆盖旧能力和安全行为，每次更新前后对比；并做好数据版本、模型版本和回滚。
+**后续追问：** 会被追问：持续学习与 RAG 如何取舍？如何量化遗忘？LoRA 是否能完全避免遗忘？
+**上游参考：** [Continual Learning in LLMs](https://outcomeschool.com/blog/continual-learning-in-llms)
+**扩展问题：**
+- 设计一个每月更新领域模型的流程，如何防止通用能力下降？
+- 回放数据比例如何确定？
+- 如何检测持续训练是否破坏了模型的安全对齐？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先定义持续学习并点出核心难点（灾难性遗忘），再按回放、正则、参数隔离、继续预训练列出方法，最后给出与 RAG 的取舍。用新旧任务的双向评估验证。
+
+#### 511. 什么是递归自我改进（RSI）？
+**答：** 递归自我改进（Recursive Self-Improvement）指 AI 系统改进自身（或其后继系统）的能力，而改进后的系统又能更好地继续改进，形成正反馈循环。目前工程上可见的形式包括：模型生成训练数据或奖励信号再训练自己（自我博弈、合成数据、自我奖励）、Agent 修改自己的提示/工具/代码并用评估器检验（如 AlphaEvolve 一类“生成器 + 评估器”循环、Darwin Gödel Machine 一类自我修改 Agent），以及用 AI 辅助 AI 研究本身。
+**深入展开：** 关键限制与风险：改进是否真实取决于评估器，如果评估器可被利用，系统会“刷分”而非变强（奖励黑客）；合成数据循环可能导致模型崩溃（质量和多样性下降）；能力提升速度若快于对齐与监督手段，会带来安全风险。因此需要不可被被测系统修改的评估器、留出集、沙箱隔离、日志审计和人工审批，以及能力阈值触发的暂停机制。
+**后续追问：** 会被追问：RSI 与普通的自动超参搜索有何不同？如何防止自我修改的 Agent 修改自己的评估器？
+**上游参考：** [What is Recursive Self-Improvement (RSI)?](https://outcomeschool.com/blog/what-is-recursive-self-improvement-rsi)
+**扩展问题：**
+- 设计一个代码优化 Agent 的自我改进循环，评估器应如何隔离？
+- 如何检测合成数据自训练导致的模型退化？
+- 哪些信号表明自我改进循环应该暂停并交给人工评审？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先定义 RSI 的正反馈循环，再列举当前可见的工程形式，最后重点讲评估器可靠性和安全控制。用独立留出评估和人工审计验证“改进”是否真实。
+
+#### 512. 扩散语言模型（DLM）是如何工作的？
+**答：** 扩散语言模型借鉴图像扩散的思路生成文本，但文本是离散 token，因此常用“掩码扩散”：前向过程逐步把句子中的 token 替换为 [MASK]，直到全部被遮盖；模型学习反向过程，即根据部分已知 token 同时预测所有被遮盖位置。生成时从全 [MASK] 的序列开始，经过若干步迭代，每步并行预测并保留置信度高的 token、对其余位置继续去噪，直到得到完整文本。代表工作有 LLaDA、Mercury、Gemini Diffusion 等。
+**深入展开：** 与自回归模型相比：优点是可以并行生成多个 token、可在任意位置修改（适合补全中间内容、编辑），推理步数可调以权衡速度与质量；缺点是需要预先确定或估计输出长度，KV cache 等自回归优化不能直接复用，在长文本连贯性和推理任务上的成熟度仍在追赶自回归模型，生态和服务框架也不成熟。
+**后续追问：** 会被追问：DLM 为什么能并行生成？步数与质量如何权衡？它会取代自回归模型吗？
+**上游参考：** [How do Diffusion Language Models (DLMs) work?](https://outcomeschool.com/blog/how-do-diffusion-language-models-dlms-work)
+**扩展问题：**
+- 掩码扩散与 BERT 式掩码语言模型有什么联系与区别？
+- 如何为 DLM 决定输出长度？
+- 在代码补全（填中间）场景中，DLM 有什么潜在优势？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先说明文本上的掩码前向/反向过程，再描述迭代并行生成的流程，最后与自回归模型对比优缺点。用相同质量下的生成延迟和步数-质量曲线验证。
+
+#### 513. LLM 水印是如何工作的？
+**答：** LLM 文本水印是在生成时嵌入人眼不可见、但可被统计检测的信号。代表方法（Kirchenbauer 等，2023 的“红绿表”）：每生成一个 token 时，用前一个 token 和密钥做哈希，把词表伪随机地分成“绿表”和“红表”，并给绿表 token 的 logits 加一个小偏置 δ，使模型更倾向选绿表词。检测时，用同样的密钥重算每个位置的绿表，统计绿表 token 的比例；正常人类文本约为 γ（绿表占比），带水印文本显著更高，可用 z 检验判断。Google 的 SynthID-Text 是另一种已在产品中使用的方案。
+**深入展开：** 局限：改写、翻译、同义词替换会削弱水印；文本太短时统计不显著；在低熵输出（如代码、固定答案）中嵌入空间小，强加偏置会影响质量；需要掌握密钥才能检测；开放权重模型无法强制加水印。因此水印通常与内容来源元数据（如 C2PA）和其他检测手段结合使用，而不能单独作为判定 AI 生成的依据。
+**后续追问：** 会被追问：水印会降低生成质量吗？检测的误报率如何控制？如何攻击和防御水印？
+**上游参考：** [How Does LLM Watermarking Work?](https://outcomeschool.com/blog/how-does-llm-watermarking-work)
+**扩展问题：**
+- 推导一下：给定 200 个 token、γ=0.25，绿表比例达到多少时 z 值大于 4？
+- 为什么低熵文本难以加水印？
+- 企业要标识 AI 生成内容时，水印与元数据标记如何配合？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，先讲生成时“红绿表 + logits 偏置”的嵌入方式，再讲基于统计检验的检测，最后说明鲁棒性和适用边界。用不同长度和改写强度下的检出率与误报率验证。
+
+#### 514. RNN 和 Transformer 有什么区别？
+**答：** RNN 按时间步顺序处理序列，每一步把当前输入和上一步的隐状态合成新的隐状态，信息必须逐步传递；Transformer 用自注意力让每个位置直接与所有（或所有之前的）位置交互。主要区别：①并行性：RNN 训练必须按时间顺序计算，Transformer 训练时所有位置可以并行，更适合 GPU 和大规模训练；②长距离依赖：RNN 信息要经过多步传递，容易梯度消失（LSTM/GRU 有所缓解），Transformer 任意两个位置之间路径长度为 1；③复杂度与记忆：RNN 每步计算和状态大小固定，推理时内存不随长度增长，Transformer 注意力为 O(n²)，推理需要随长度增长的 KV cache。
+**深入展开：** 这也是近年来 Mamba 等状态空间模型、RWKV 等线性 RNN 再次受到关注的原因：它们试图兼得 RNN 的线性推理成本和 Transformer 的并行训练能力，并出现了与注意力层混合的架构。面试中可以说明：Transformer 的胜出主要来自可并行训练带来的扩展性，而不是 RNN 在理论上做不到序列建模。
+**后续追问：** 会被追问：LSTM 如何缓解梯度消失？为什么 Transformer 需要位置编码而 RNN 不需要？状态空间模型和 RNN 是什么关系？
+**上游参考：** [How do RNNs and Transformers differ?](https://outcomeschool.com/blog/how-do-rnns-and-transformers-differ)
+**扩展问题：**
+- 对一段 100K token 的输入，RNN 与 Transformer 推理时的内存占用如何随长度变化？
+- 为什么 Transformer 训练可以并行，但自回归生成仍然是顺序的？
+- 在什么场景下你仍会考虑 RNN 或状态空间模型？
+**推理回答：** 先把问题定位到“LLM 基础”中的模型机制层，从信息传递方式出发，按并行性、长距离依赖、复杂度与内存三个维度对比，最后联系状态空间模型等新进展。用训练吞吐和推理内存随长度的变化验证结论。
 
 #### 450. 标称上下文长度与有效上下文长度有什么区别？
 **答：** 标称长度表示接口或架构允许接收的范围；有效长度表示在特定任务、质量门槛和干扰条件下仍能可靠使用的信息范围。后者必须实测。
@@ -4940,6 +5261,589 @@
 - 如果产品、工程、法务或业务团队意见冲突，应如何形成可执行的决策？
 - 如何用指标、复盘和上线门槛证明这个决策是负责任的？
 **推理回答：** 先把问题定位到“行为与场景题”中的沟通与决策层，决定技术选择能否被业务、产品、合规和工程团队共同接受。行为题的推理重点是把技术判断翻译成业务风险、沟通路径和可执行决策。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“业务影响、风险降低、沟通结果、上线门槛达成度、复盘改进项”验证答案，而不是只依赖主观感觉。
+
+### 题号对照表
+
+<!-- mapping:start（由脚本生成，请勿手改） -->
+
+上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 472/568；“待补”表示后续批次补齐。
+
+| 上游题号 | 章节 | 本仓题号 | 上游题目 |
+|---:|---|---:|---|
+| 1 | LLM 基础 | 1 | What are foundation models, and how have they changed AI engineering? |
+| 2 | LLM 基础 | 2 | What is a Large Language Model (LLM), and how does it work? |
+| 3 | LLM 基础 | 3 | Inside ChatGPT: What Happens After You Hit Enter? |
+| 4 | LLM 基础 | 4 | What is the Transformer architecture and how does it work? |
+| 5 | LLM 基础 | 5 | What are the key components of the Transformer architecture? |
+| 6 | LLM 基础 | 486 | Walk me through what happens, step by step, in one forward pass of a decoder-only Transformer. |
+| 7 | LLM 基础 | 6 | What is tokenization in LLMs? |
+| 8 | LLM 基础 | 7 | Explain BPE (Byte Pair Encoding). |
+| 9 | LLM 基础 | 8 | Explain WordPiece and SentencePiece. |
+| 10 | LLM 基础 | 9 | What is positional encoding, and why is it needed in Transformers? |
+| 11 | LLM 基础 | 10 | What are embeddings? |
+| 12 | LLM 基础 | 11 | Explain the Query(Q), Key(K), and Value(V) in attention. |
+| 13 | LLM 基础 | 12 | What is self-attention, and how does it work in Transformers? |
+| 14 | LLM 基础 | 487 | What is Cross Attention in Transformers? |
+| 15 | LLM 基础 | 13 | Why do we scale the dot product attention by √dₖ in the Transformer architecture? |
+| 16 | LLM 基础 | 14 | What is causal masking? |
+| 17 | LLM 基础 | 15 | What are multi-head attention mechanisms? Why use multiple attention heads? |
+| 18 | LLM 基础 | 16 | What are Feed-Forward Networks in LLMs? |
+| 19 | LLM 基础 | 488 | What is Generative AI? |
+| 20 | LLM 基础 | 17 | What is the context window in LLMs, and why does it matter? |
+| 21 | LLM 基础 | 489 | Why is the context window limited in LLMs? |
+| 22 | LLM 基础 | 18 | What is temperature in the context of LLMs, and how does it affect output? |
+| 23 | LLM 基础 | 490 | Why is the first token slower than the rest in an LLM? |
+| 24 | LLM 基础 | 19 | Explain Top-p (nucleus) sampling and Top-k sampling. How do they differ? |
+| 25 | LLM 基础 | 491 | Compare greedy decoding, beam search, top-k, top-p, and temperature sampling. When does each fail? |
+| 26 | LLM 基础 | 20 | What are logits, and how are they used in text generation? |
+| 27 | LLM 基础 | 492 | What are stop tokens in LLMs, and how does an LLM know when to stop generating? |
+| 28 | LLM 基础 | 493 | What is the difference between a stop token and a stop sequence? |
+| 29 | LLM 基础 | 21 | What are skip connections (residual connections) in Transformers? |
+| 30 | LLM 基础 | 22 | What is the difference between open-source and closed-source LLMs? When would you choose one over the other? |
+| 31 | LLM 基础 | 23 | What is the difference between encoder-only, decoder-only, and encoder-decoder Transformer architectures? |
+| 32 | LLM 基础 | 24 | What is KV cache, and how does it speed up inference? |
+| 33 | LLM 基础 | 494 | Estimate the KV cache memory needed to serve a large model. How does it constrain batch size and context length? |
+| 34 | LLM 基础 | 495 | KV Cache Compression |
+| 35 | LLM 基础 | 26 | What is model distillation, and how is it used with LLMs? |
+| 36 | LLM 基础 | 27 | What is Mixture of Experts (MoE), and how does it work in models like Mixtral? |
+| 37 | LLM 基础 | 28 | What is the difference between dense and sparse models? |
+| 38 | LLM 基础 | 496 | How does DeepSeek-V4 work? |
+| 39 | LLM 基础 | 29 | What is Flash Attention? |
+| 40 | LLM 基础 | 30 | What is Cross-Entropy Loss? |
+| 41 | LLM 基础 | 31 | What is Grouped-Query Attention (GQA), and how does it differ from Multi-Head Attention (MHA)? |
+| 42 | LLM 基础 | 497 | How does Sliding Window Attention work? |
+| 43 | LLM 基础 | 498 | How do Attention Sinks work? |
+| 44 | LLM 基础 | 32 | How does Rotary Position Embedding (RoPE) work, and why is it preferred over learned positional embeddings? |
+| 45 | LLM 基础 | 499 | Explain Layer Normalization |
+| 46 | LLM 基础 | 33 | Explain RMSNorm (Root Mean Square Layer Normalization) |
+| 47 | LLM 基础 | 500 | Why do modern Transformers use Pre-LayerNorm (Pre-Norm) instead of Post-LayerNorm? |
+| 48 | LLM 基础 | 501 | What are scaling laws (Chinchilla), and how do they guide model size vs training data decisions? |
+| 49 | LLM 基础 | 34 | Your LLM keeps ignoring your instructions. How do you make it follow structured output formats? |
+| 50 | LLM 基础 | 35 | Your LLM-powered tool hits the context window limit on long documents. How do you handle it? |
+| 51 | LLM 基础 | 36 | Your LLM does not admit when it does not know the answer. How do you make it say "I don't know"? |
+| 52 | LLM 基础 | 37 | Your LLM generates responses that are too verbose. How do you control response length? |
+| 53 | LLM 基础 | 38 | Your LLM memorized proprietary training data and leaks it in responses. How do you prevent this? |
+| 54 | LLM 基础 | 39 | Your LLM coding assistant generates outdated code using deprecated libraries. How do you fix it? |
+| 55 | LLM 基础 | 40 | Your tokenizer splits important domain terms into meaningless subword pieces. How do you fix it? |
+| 56 | LLM 基础 | 41 | Your Transformer's KV cache grows too large during long sequence generation. How do you manage memory? |
+| 57 | LLM 基础 | 42 | Your Transformer runs out of memory on long documents due to quadratic self-attention. How do you scale it? |
+| 58 | LLM 基础 | 43 | Your distilled student model fails on the complex reasoning that the teacher model handled. How do you close the gap? |
+| 59 | LLM 基础 | 44 | After RLHF alignment, your LLM became safer but lost capability on hard tasks. How do you manage the alignment tax? |
+| 60 | LLM 基础 | 45 | Your RLHF-trained LLM is gaming the reward model instead of being genuinely helpful. How do you fix reward hacking? |
+| 61 | LLM 基础 | 46 | Your chatbot loses context after 10 turns in a conversation. How do you maintain a long conversation context? |
+| 62 | LLM 基础 | 47 | Your chatbot fails when users switch topics mid-conversation. How do you handle topic switches? |
+| 63 | LLM 基础 | 48 | Your QA system always generates an answer even when no answer exists in the context. How do you detect unanswerable questions? |
+| 64 | LLM 基础 | 49 | Your summarization system hallucinated facts not in the original article. How do you fix it? |
+| 65 | LLM 基础 | 50 | Your text generation repeats phrases in long outputs. How do you fix repetition? |
+| 66 | LLM 基础 | 51 | Transformers work on text, so can they also understand images? |
+| 67 | LLM 基础 | 502 | Small Language Models (SLMs) |
+| 68 | LLM 基础 | 503 | Large Reasoning Models (LRMs) |
+| 69 | LLM 基础 | 504 | Jev and System One Models |
+| 70 | LLM 基础 | 505 | What are Autoregressive Models? |
+| 71 | LLM 基础 | 25 | Explain the difference between autoregressive and masked language modeling. |
+| 72 | LLM 基础 | 506 | Proximal Policy Optimization (PPO) |
+| 73 | LLM 基础 | 507 | Direct Preference Optimization (DPO) |
+| 74 | LLM 基础 | 508 | Group Relative Policy Optimization (GRPO) |
+| 75 | LLM 基础 | 509 | Recursive Language Models (RLMs) |
+| 76 | LLM 基础 | 510 | Continual Learning in LLMs |
+| 77 | LLM 基础 | 511 | What is Recursive Self-Improvement (RSI)? |
+| 78 | LLM 基础 | 512 | How do Diffusion Language Models (DLMs) work? |
+| 79 | LLM 基础 | 513 | How Does LLM Watermarking Work? |
+| 80 | LLM 基础 | 514 | How do RNNs and Transformers differ? |
+| 81 | Prompt Engineering | 52 | What is prompt engineering, and why is it critical for AI applications? |
+| 82 | Prompt Engineering | 53 | Explain zero-shot, one-shot, and few-shot prompting with examples. |
+| 83 | Prompt Engineering | 54 | What is chain-of-thought (CoT) prompting, and when should you use it? |
+| 84 | Prompt Engineering | 55 | Explain self-consistency prompting and how it improves reasoning. |
+| 85 | Prompt Engineering | 56 | What is tree-of-thought prompting? |
+| 86 | Prompt Engineering | 57 | What is ReAct (Reasoning + Acting) prompting, and how does it work? |
+| 87 | Prompt Engineering | 58 | What is a system prompt, and how does it influence model behavior? |
+| 88 | Prompt Engineering | 59 | How do you structure prompts for consistent structured output (JSON, XML)? |
+| 89 | Prompt Engineering | 60 | What is prompt injection, and how do you defend against it? |
+| 90 | Prompt Engineering | 61 | What is jailbreaking in LLMs, and what are common jailbreak techniques? |
+| 91 | Prompt Engineering | 62 | How do you optimize prompts for cost and latency? |
+| 92 | Prompt Engineering | 63 | What is the difference between prompt engineering and prompt tuning? |
+| 93 | Prompt Engineering | 64 | What is a prompt template, and how do you design one for production use? |
+| 94 | Prompt Engineering | 65 | How do you handle multi-turn conversations with LLMs? |
+| 95 | Prompt Engineering | 66 | What is role prompting, and when is it effective? |
+| 96 | Prompt Engineering | 67 | What is prompt chaining, and how do you design a chain of prompts for complex tasks? |
+| 97 | Prompt Engineering | 68 | How do you evaluate and iterate on prompt quality? |
+| 98 | Prompt Engineering | 69 | What are meta-prompts, and how can they be used to generate prompts? |
+| 99 | Prompt Engineering | 70 | What are the common failure modes in prompting, and how do you debug them? |
+| 100 | Prompt Engineering | 71 | How do you handle edge cases and adversarial inputs in prompt design? |
+| 101 | Prompt Engineering | 72 | What is the "lost in the middle" problem in long-context prompting? |
+| 102 | Prompt Engineering | 73 | What are output parsers, and why are they needed for production applications? |
+| 103 | Prompt Engineering | 74 | How do you handle multi-language prompting effectively? |
+| 104 | Prompt Engineering | 75 | Your few-shot prompting gives inconsistent results across similar inputs. How do you stabilize it? |
+| 105 | Prompt Engineering | 76 | Your LLM classification system is too sensitive to prompt wording changes. How do you reduce prompt sensitivity? |
+| 106 | Prompt Engineering | 77 | Your chatbot's system prompt containing proprietary business logic is being leaked by users. How do you prevent it? |
+| 107 | Prompt Engineering | 78 | Your LLM agent is vulnerable to prompt injection that reveals the system prompt. How do you defend it? |
+| 108 | Prompt Engineering | 79 | Your chain-of-thought prompting is not improving LLM accuracy on reasoning tasks. What do you fix? |
+| 109 | Prompt Engineering | 80 | Your AI system works in English but fails for other languages. How do you add multilingual support? |
+| 110 | Prompt Engineering | 81 | Your zero-shot cross-lingual transfer from English fails on other languages. How do you fix it? |
+| 111 | 检索增强生成 RAG | 82 | What is Retrieval-Augmented Generation (RAG), and why is it important? |
+| 112 | 检索增强生成 RAG | 83 | Explain the architecture of a basic RAG system. |
+| 113 | 检索增强生成 RAG | 84 | What are the key components of a RAG pipeline? |
+| 114 | 检索增强生成 RAG | 85 | What are chunking strategies, and how do you choose the right chunk size? |
+| 115 | 检索增强生成 RAG | 86 | Compare fixed-size chunking, semantic chunking, and recursive chunking. |
+| 116 | 检索增强生成 RAG | 待补 | What is Contextual Retrieval, and how does it improve RAG? |
+| 117 | 检索增强生成 RAG | 87 | What are embedding models, and how do they convert text to vectors? |
+| 118 | 检索增强生成 RAG | 88 | How do you choose an embedding model for your RAG system? |
+| 119 | 检索增强生成 RAG | 89 | Explain Agentic RAG. |
+| 120 | 检索增强生成 RAG | 90 | What is hybrid search, and why is it better than pure vector search? |
+| 121 | 检索增强生成 RAG | 91 | What is re-ranking, and how does it improve RAG retrieval quality? |
+| 122 | 检索增强生成 RAG | 待补 | What is ColBERT, and how does late interaction retrieval work? |
+| 123 | 检索增强生成 RAG | 待补 | Compare reranker architectures: cross-encoder, ColBERT, and LLM-based rerankers. |
+| 124 | 检索增强生成 RAG | 92 | How do you handle multi-document and multi-hop questions in RAG? |
+| 125 | 检索增强生成 RAG | 93 | What is the "lost in the middle" problem in RAG systems? |
+| 126 | 检索增强生成 RAG | 94 | How do you evaluate a RAG system? Explain faithfulness, relevance, and context precision/recall. |
+| 127 | 检索增强生成 RAG | 95 | Explain Self-RAG. How does the model decide when to retrieve? |
+| 128 | 检索增强生成 RAG | 96 | What is GraphRAG, and when would you use it over traditional RAG? |
+| 129 | 检索增强生成 RAG | 待补 | Vectorless RAG |
+| 130 | 检索增强生成 RAG | 97 | How do you handle structured data (tables, SQL databases) in a RAG pipeline? |
+| 131 | 检索增强生成 RAG | 98 | What are the common failure modes of RAG systems, and how do you debug them? |
+| 132 | 检索增强生成 RAG | 99 | How do you handle document updates and maintain freshness in a RAG system? |
+| 133 | 检索增强生成 RAG | 100 | How do you optimize RAG for latency in production? |
+| 134 | 检索增强生成 RAG | 101 | What is the role of metadata filtering in RAG systems? |
+| 135 | 检索增强生成 RAG | 102 | Compare RAG vs fine-tuning. When would you use each? |
+| 136 | 检索增强生成 RAG | 待补 | Long context windows keep getting cheaper. When should you use retrieval (RAG) vs putting everything in the context window? |
+| 137 | 检索增强生成 RAG | 103 | What is query transformation in RAG (HyDE, query decomposition, step-back prompting)? |
+| 138 | 检索增强生成 RAG | 104 | How do you implement citation and source attribution in RAG? |
+| 139 | 检索增强生成 RAG | 105 | How do you scale a RAG system to millions of documents? |
+| 140 | 检索增强生成 RAG | 106 | What is parent-child chunking, and how does it improve retrieval? |
+| 141 | 检索增强生成 RAG | 107 | Your RAG system is hallucinating despite having the right context. How do you fix it? |
+| 142 | 检索增强生成 RAG | 108 | Your RAG chunk overlap causes redundant results. How do you reduce redundancy? |
+| 143 | 检索增强生成 RAG | 109 | Your RAG retrieval is too slow with a large knowledge base. How do you speed it up? |
+| 144 | 检索增强生成 RAG | 110 | Your RAG system returns duplicate results. How do you deduplicate? |
+| 145 | 检索增强生成 RAG | 111 | Your RAG system needs per-user access control on internal documents. How do you implement it? |
+| 146 | 检索增强生成 RAG | 112 | Your RAG system fails on domain-specific jargon. How do you fix it? |
+| 147 | 检索增强生成 RAG | 113 | Your text-only RAG system now needs to handle images and tables. How do you extend it? |
+| 148 | 检索增强生成 RAG | 114 | Your RAG knowledge base gets updated frequently and needs versioning. How do you manage it? |
+| 149 | 检索增强生成 RAG | 115 | Your RAG system fails on multi-hop questions that require combining multiple facts. How do you fix it? |
+| 150 | 检索增强生成 RAG | 116 | Your enterprise RAG system returns contradictory answers from different source documents. How do you resolve conflicts? |
+| 151 | 检索增强生成 RAG | 117 | Your RAG system returns outdated answers from an evolving knowledge base. How do you keep it current? |
+| 152 | 检索增强生成 RAG | 118 | Your RAG system struggles with PDF documents containing tables and layouts. How do you fix PDF parsing? |
+| 153 | AI Agent 与 Agentic 系统 | 119 | What is an AI agent, and how does it differ from a simple LLM call? |
+| 154 | AI Agent 与 Agentic 系统 | 120 | AI Agent Memory |
+| 155 | AI Agent 与 Agentic 系统 | 121 | Harness Engineering in AI |
+| 156 | AI Agent 与 Agentic 系统 | 待补 | What matters more for an agentic coding tool like Claude Code: the model or the harness? |
+| 157 | AI Agent 与 Agentic 系统 | 122 | Explain the ReAct (Reasoning + Acting) agent architecture. |
+| 158 | AI Agent 与 Agentic 系统 | 123 | What is the Plan-and-Execute agent pattern? |
+| 159 | AI Agent 与 Agentic 系统 | 124 | What is tool use (function calling) in LLMs, and how does it enable agents? |
+| 160 | AI Agent 与 Agentic 系统 | 待补 | What is the difference between structured output and function calling? |
+| 161 | AI Agent 与 Agentic 系统 | 125 | How do you design and define tools for an AI agent? |
+| 162 | AI Agent 与 Agentic 系统 | 待补 | How does an agent decide when to call a tool versus answering from its own knowledge? |
+| 163 | AI Agent 与 Agentic 系统 | 126 | What is the difference between single-agent and multi-agent systems? |
+| 164 | AI Agent 与 Agentic 系统 | 待补 | When do multi-agent systems break down, and when is a single agent the better choice? |
+| 165 | AI Agent 与 Agentic 系统 | 127 | What is Model Context Protocol (MCP), and how does it standardize tool integration? |
+| 166 | AI Agent 与 Agentic 系统 | 待补 | How does MCP differ from traditional function calling? |
+| 167 | AI Agent 与 Agentic 系统 | 待补 | What are AI SubAgents? |
+| 168 | AI Agent 与 Agentic 系统 | 128 | What are the different types of agent memory (short-term, long-term, episodic)? |
+| 169 | AI Agent 与 Agentic 系统 | 129 | How do you handle agent failures and implement error recovery? |
+| 170 | AI Agent 与 Agentic 系统 | 130 | What is an agent loop, and how does it decide when to stop? |
+| 171 | AI Agent 与 Agentic 系统 | 待补 | Context Engineering |
+| 172 | AI Agent 与 Agentic 系统 | 待补 | How does context compaction work? |
+| 173 | AI Agent 与 Agentic 系统 | 待补 | Loop Engineering |
+| 174 | AI Agent 与 Agentic 系统 | 待补 | Graph Engineering |
+| 175 | AI Agent 与 Agentic 系统 | 待补 | How AI Agents Communicate? |
+| 176 | AI Agent 与 Agentic 系统 | 待补 | What are Agent Skills? |
+| 177 | AI Agent 与 Agentic 系统 | 131 | How do you evaluate and test AI agents? |
+| 178 | AI Agent 与 Agentic 系统 | 132 | What are the security risks of agentic systems, and how do you mitigate them? |
+| 179 | AI Agent 与 Agentic 系统 | 待补 | Your agent reads untrusted content (emails, web pages, documents) and can call tools. How do you prevent indirect prompt injection and data exfiltration? |
+| 180 | AI Agent 与 Agentic 系统 | 133 | What is the difference between reactive and proactive agents? |
+| 181 | AI Agent 与 Agentic 系统 | 134 | How do you manage token consumption and cost in long-running agent workflows? |
+| 182 | AI Agent 与 Agentic 系统 | 135 | What is the human-in-the-loop pattern for agents, and when is it needed? |
+| 183 | AI Agent 与 Agentic 系统 | 136 | How do you implement guardrails for AI agents to prevent harmful actions? |
+| 184 | AI Agent 与 Agentic 系统 | 137 | What is agent reflection, and how does it improve agent performance? |
+| 185 | AI Agent 与 Agentic 系统 | 138 | What is the difference between code-generating agents and tool-calling agents? |
+| 186 | AI Agent 与 Agentic 系统 | 139 | How do you handle multi-modal inputs and outputs in agentic systems? |
+| 187 | AI Agent 与 Agentic 系统 | 140 | How do you implement state management in complex agent workflows? |
+| 188 | AI Agent 与 Agentic 系统 | 141 | How do you build a customer support agent with escalation logic? |
+| 189 | AI Agent 与 Agentic 系统 | 142 | What is agent orchestration, and how do you implement it? |
+| 190 | AI Agent 与 Agentic 系统 | 待补 | What is Sakana Fugu, and how does it orchestrate a team of AI models? |
+| 191 | AI Agent 与 Agentic 系统 | 143 | How do you build a code execution agent safely using sandboxed environments? |
+| 192 | AI Agent 与 Agentic 系统 | 144 | Your AI agent is stuck in an infinite loop. How do you detect and break the cycle? |
+| 193 | AI Agent 与 Agentic 系统 | 145 | Your AI agent gets conflicting answers from different tools. How does it reconcile them? |
+| 194 | AI Agent 与 Agentic 系统 | 146 | Your AI agent burns too many tokens per task. How do you reduce token consumption? |
+| 195 | AI Agent 与 Agentic 系统 | 147 | Your AI agent keeps exceeding its budget per task. How do you enforce budget limits? |
+| 196 | AI Agent 与 Agentic 系统 | 148 | Your AI agent hallucinates tool capabilities and passes wrong inputs. How do you fix it? |
+| 197 | AI Agent 与 Agentic 系统 | 149 | Your AI agent deleted a production database. How do you prevent irreversible actions? |
+| 198 | AI Agent 与 Agentic 系统 | 150 | Your AI agent has many tools, but keeps picking the wrong one. How do you improve tool selection? |
+| 199 | AI Agent 与 Agentic 系统 | 151 | Your AI agent takes too long to complete a task. How do you speed it up? |
+| 200 | AI Agent 与 Agentic 系统 | 待补 | Your long-running agent drifts after hours and confidently works on the wrong thing. How do you diagnose and fix it? |
+| 201 | AI Agent 与 Agentic 系统 | 152 | Your LLM selects the right tool but extracts the wrong parameters. How do you fix parameter extraction? |
+| 202 | AI Agent 与 Agentic 系统 | 待补 | How do Computer-Use Agents work? |
+| 203 | AI Agent 与 Agentic 系统 | 待补 | How do Browser Agents work? |
+| 204 | AI Agent 与 Agentic 系统 | 待补 | How does LangChain work? |
+| 205 | AI Agent 与 Agentic 系统 | 待补 | How does LangGraph work? |
+| 206 | AI Agent 与 Agentic 系统 | 待补 | What is OKF (Open Knowledge Format)? |
+| 207 | 微调与模型适配 | 153 | What is fine-tuning, and when should you fine-tune an LLM? |
+| 208 | 微调与模型适配 | 154 | Explain the difference between full fine-tuning and parameter-efficient fine-tuning (PEFT). |
+| 209 | 微调与模型适配 | 155 | What is LoRA (Low-Rank Adaptation), and how does it work? |
+| 210 | 微调与模型适配 | 156 | What is QLoRA, and how does it enable fine-tuning on consumer hardware? |
+| 211 | 微调与模型适配 | 待补 | How does fine-tuning work? |
+| 212 | 微调与模型适配 | 157 | Explain Prefix Tuning and Prompt Tuning. How are they different from LoRA? |
+| 213 | 微调与模型适配 | 158 | What is adapter-based fine-tuning? |
+| 214 | 微调与模型适配 | 待补 | Explain the difference between pre-training, supervised fine-tuning (SFT), and preference optimization (RLHF/DPO). |
+| 215 | 微调与模型适配 | 159 | What is RLHF (Reinforcement Learning from Human Feedback), and how is it used to align LLMs? |
+| 216 | 微调与模型适配 | 待补 | What is Deep RL from Human Preferences, the paper that started RLHF? |
+| 217 | 微调与模型适配 | 待补 | Why did DPO displace PPO-based RLHF at many labs? When is online RL still better? |
+| 218 | 微调与模型适配 | 160 | What is instruction tuning, and why is it important for chat models? |
+| 219 | 微调与模型适配 | 161 | How do you prepare a dataset for fine-tuning an LLM? |
+| 220 | 微调与模型适配 | 162 | What is catastrophic forgetting, and how do you prevent it during fine-tuning? |
+| 221 | 微调与模型适配 | 163 | When should you choose fine-tuning over RAG over prompt engineering? |
+| 222 | 微调与模型适配 | 164 | How do you evaluate a fine-tuned model's performance? |
+| 223 | 微调与模型适配 | 165 | What is synthetic data generation, and how do you use it for fine-tuning? |
+| 224 | 微调与模型适配 | 166 | What are the key hyperparameters for fine-tuning (learning rate, epochs, batch size, LoRA rank)? |
+| 225 | 微调与模型适配 | 待补 | Do the GPU memory math for full fine-tuning a 7B model in bf16 with Adam. Now with LoRA and QLoRA. |
+| 226 | 微调与模型适配 | 167 | How do you fine-tune a model for a specific domain (legal, medical, finance)? |
+| 227 | 微调与模型适配 | 168 | What is continual pre-training, and when would you use it? |
+| 228 | 微调与模型适配 | 169 | How do you merge multiple LoRA adapters? |
+| 229 | 微调与模型适配 | 170 | What is the difference between SFT (Supervised Fine-Tuning) and alignment training? |
+| 230 | 微调与模型适配 | 171 | What is RLAIF (RL from AI Feedback), and how does it differ from RLHF? |
+| 231 | 微调与模型适配 | 待补 | What is Constitutional AI, and how does it differ from RLHF? |
+| 232 | 微调与模型适配 | 待补 | What is RLVR (Reinforcement Learning with Verifiable Rewards), and when does it beat a learned reward model? |
+| 233 | 微调与模型适配 | 172 | What is knowledge distillation for fine-tuning, and what are the legal considerations? |
+| 234 | 微调与模型适配 | 173 | Your fine-tuned LLM produces factually wrong outputs due to training data quality issues. How do you fix it? |
+| 235 | 微调与模型适配 | 174 | You must choose between LoRA and full fine-tuning for a domain-specific assistant. How do you decide? |
+| 236 | 微调与模型适配 | 175 | Your fine-tuned model memorized training data verbatim instead of learning patterns. How do you fix overfitting? |
+| 237 | 微调与模型适配 | 176 | Your fine-tuned LLM forgot its general capabilities after domain-specific fine-tuning. How do you fix catastrophic forgetting? |
+| 238 | 微调与模型适配 | 177 | Your RLHF preference data has low annotator agreement. How do you ensure data quality? |
+| 239 | 向量数据库与 Embedding | 178 | What are embeddings in the context of AI engineering? |
+| 240 | 向量数据库与 Embedding | 179 | How do embedding models convert text to vectors? |
+| 241 | 向量数据库与 Embedding | 待补 | What is Contrastive Learning, and how is it used to train embedding models? |
+| 242 | 向量数据库与 Embedding | 180 | What is the difference between sparse and dense embeddings? |
+| 243 | 向量数据库与 Embedding | 181 | Explain cosine similarity, dot product, and Euclidean distance for vector search. |
+| 244 | 向量数据库与 Embedding | 182 | What is a vector database, and how does it differ from a traditional database? |
+| 245 | 向量数据库与 Embedding | 待补 | How does Approximate Nearest Neighbor (ANN) search work? |
+| 246 | 向量数据库与 Embedding | 待补 | Compare HNSW, IVF, and flat indexes. How do you pick one, and what does recall@k cost in latency? |
+| 247 | 向量数据库与 Embedding | 待补 | How does an Embedding Cache work? |
+| 248 | 向量数据库与 Embedding | 183 | How do you choose the right embedding model for your use case? |
+| 249 | 向量数据库与 Embedding | 184 | What is embedding dimensionality, and how does it affect performance and cost? |
+| 250 | 向量数据库与 Embedding | 185 | How do you handle embedding drift when the embedding model is updated? |
+| 251 | 向量数据库与 Embedding | 186 | What are multi-modal embeddings, and how are they generated? |
+| 252 | 向量数据库与 Embedding | 187 | How do you index and query multi-tenant data in a vector database? |
+| 253 | 向量数据库与 Embedding | 188 | What is quantization of embeddings, and how does it reduce storage costs? |
+| 254 | 向量数据库与 Embedding | 189 | How do you benchmark and evaluate embedding model quality? |
+| 255 | 向量数据库与 Embedding | 190 | What is the role of metadata in vector databases? |
+| 256 | 向量数据库与 Embedding | 191 | How do you handle large-scale vector search with billions of vectors? |
+| 257 | 向量数据库与 Embedding | 192 | What is hybrid search (combining keyword search with vector search)? |
+| 258 | 向量数据库与 Embedding | 193 | How do you fine-tune an embedding model for a specific domain? |
+| 259 | 向量数据库与 Embedding | 194 | Your vector database for RAG is consuming too much memory. How do you reduce it? |
+| 260 | 向量数据库与 Embedding | 195 | Your vector database cannot scale to millions of embeddings. How do you fix the bottleneck? |
+| 261 | 向量数据库与 Embedding | 196 | Your new embedding model has different dimensions from the existing vectors in production. How do you handle the mismatch? |
+| 262 | 向量数据库与 Embedding | 197 | Your vector search returns irrelevant results despite high similarity scores. How do you fix it? |
+| 263 | 向量数据库与 Embedding | 198 | You deployed a new embedding model, and search quality crashed overnight. How do you handle embedding drift? |
+| 264 | 向量数据库与 Embedding | 199 | Your semantic search fails for short queries. How do you improve it? |
+| 265 | AI 系统设计 | 待补 | Design a Real-Time Voice AI Agent |
+| 266 | AI 系统设计 | 待补 | Design ChatGPT: Training to Serving (End to End) |
+| 267 | AI 系统设计 | 待补 | Design a RAG System (Chat with Your Documents) |
+| 268 | AI 系统设计 | 待补 | Design an enterprise RAG assistant over 10M documents with per-user permissions. |
+| 269 | AI 系统设计 | 待补 | Design Memory for a Personal AI Assistant |
+| 270 | AI 系统设计 | 待补 | Design a Deep Research Agent |
+| 271 | AI 系统设计 | 待补 | Design a Multi-Agent Customer Support System |
+| 272 | AI 系统设计 | 待补 | Design an On-Device AI Assistant |
+| 273 | AI 系统设计 | 205 | Design a Multimodal Search System (Text, Image, Video) |
+| 274 | AI 系统设计 | 待补 | Design an LLM Inference Platform (vLLM-as-a-Service) |
+| 275 | AI 系统设计 | 待补 | Design an LLM Evaluation Platform |
+| 276 | AI 系统设计 | 待补 | Design a Text-to-Image Generation Service (Midjourney-like) |
+| 277 | AI 系统设计 | 待补 | Design a Music Generation Service (Suno-like) |
+| 278 | AI 系统设计 | 待补 | Design a Video Generation Service (Sora-like) |
+| 279 | AI 系统设计 | 待补 | Design an AI Coding Agent. |
+| 280 | AI 系统设计 | 202 | Design a code generation and review system. |
+| 281 | AI 系统设计 | 203 | Design a content moderation system using AI. |
+| 282 | AI 系统设计 | 204 | Design a real-time AI recommendation system. |
+| 283 | AI 系统设计 | 206 | Design an AI-powered email assistant. |
+| 284 | AI 系统设计 | 207 | Design a medical diagnosis assistant using AI. |
+| 285 | AI 系统设计 | 208 | Design a fraud detection system powered by LLMs. |
+| 286 | AI 系统设计 | 209 | Design an AI-powered data extraction pipeline from unstructured documents. |
+| 287 | AI 系统设计 | 待补 | Design a Text-to-SQL system over a data warehouse with thousands of tables. |
+| 288 | AI 系统设计 | 210 | Design a personalized learning assistant. |
+| 289 | AI 系统设计 | 211 | Design an AI system for automated code migration. |
+| 290 | AI 系统设计 | 212 | Design an AI-powered legal document review system. |
+| 291 | AI 系统设计 | 213 | Design a conversational AI system with memory across sessions. |
+| 292 | AI 系统设计 | 214 | How do you design for latency vs quality trade-offs in AI systems? |
+| 293 | AI 系统设计 | 215 | How do you implement caching strategies for LLM applications? |
+| 294 | AI 系统设计 | 216 | How do you design rate limiting and cost management for AI APIs? |
+| 295 | AI 系统设计 | 217 | How do you handle failover and fallback strategies for AI systems? |
+| 296 | AI 系统设计 | 218 | How do you design an AI system for high availability and fault tolerance? |
+| 297 | AI 系统设计 | 219 | How do you design an AI system that gracefully degrades when the model is unavailable? |
+| 298 | AI 系统设计 | 220 | What are the key considerations for multi-region deployment of AI systems? |
+| 299 | AI 系统设计 | 221 | Design an AI-powered search engine for an e-commerce platform. |
+| 300 | AI 系统设计 | 222 | Design an AI gateway/proxy for managing LLM access across an organization. |
+| 301 | AI 系统设计 | 223 | How do you design a RAG system that handles conflicting information across sources? |
+| 302 | AI 系统设计 | 224 | How do you approach capacity planning for an AI system? |
+| 303 | AI 系统设计 | 225 | Design a multi-tenant AI chatbot platform where each business gets a custom chatbot. |
+| 304 | AI 系统设计 | 226 | Design an AI meeting summarizer system for thousands of meetings daily. |
+| 305 | AI 系统设计 | 227 | Design an AI notification system that prioritizes instead of broadcasting. |
+| 306 | AI 系统设计 | 228 | Design an AI-powered anomaly detection system for cloud infrastructure. |
+| 307 | AI 系统设计 | 229 | Design an AI-powered document processing pipeline for financial institutions. |
+| 308 | AI 系统设计 | 230 | Design an AI dynamic pricing engine. |
+| 309 | AI 系统设计 | 231 | Design an AI resume screening system that handles 100K applications per week. |
+| 310 | AI 系统设计 | 232 | Design an AI voice assistant architecture. |
+| 311 | AI 系统设计 | 233 | Design a multi-agent workflow system where agents collaborate on complex tasks. |
+| 312 | AI 系统设计 | 234 | Design a real-time AI transcription system for concurrent audio streams. |
+| 313 | AI 系统设计 | 235 | Design an AI-powered live streaming content moderation system. |
+| 314 | LLMOps 与生产级 AI | 待补 | How does Prompt Caching work? |
+| 315 | LLMOps 与生产级 AI | 待补 | Prefill vs Decode |
+| 316 | LLMOps 与生产级 AI | 待补 | Why is prefill compute-bound and decode memory-bandwidth-bound? |
+| 317 | LLMOps 与生产级 AI | 待补 | What is chunked prefill, and why does it improve tail latency under mixed traffic? |
+| 318 | LLMOps 与生产级 AI | 待补 | What is Prefill-Decode Disaggregation, and when does it pay off? |
+| 319 | LLMOps 与生产级 AI | 236 | Explain the AI product lifecycle from ideation to production. |
+| 320 | LLMOps 与生产级 AI | 237 | What is LLMOps, and how does it differ from traditional MLOps? |
+| 321 | LLMOps 与生产级 AI | 238 | How do you serve LLMs in production? |
+| 322 | LLMOps 与生产级 AI | 239 | What is model quantization? |
+| 323 | LLMOps 与生产级 AI | 待补 | Explain post-training quantization (PTQ) vs quantization-aware training (QAT). What breaks when you push weights to 2-4 bits? |
+| 324 | LLMOps 与生产级 AI | 240 | How do you monitor LLM applications in production? |
+| 325 | LLMOps 与生产级 AI | 241 | What is LLM observability? |
+| 326 | LLMOps 与生产级 AI | 242 | What are guardrails for LLMs, and how do you implement them? |
+| 327 | LLMOps 与生产级 AI | 243 | How do you implement content filtering for AI outputs? |
+| 328 | LLMOps 与生产级 AI | 244 | How do you estimate the cost of running an AI-powered feature in production? |
+| 329 | LLMOps 与生产级 AI | 245 | How do you optimize LLM inference costs in production? |
+| 330 | LLMOps 与生产级 AI | 246 | How do you implement A/B testing for LLM systems? |
+| 331 | LLMOps 与生产级 AI | 247 | What is CI/CD for AI applications, and how does it differ from traditional CI/CD? |
+| 332 | LLMOps 与生产级 AI | 248 | How do you version and manage prompts in production? |
+| 333 | LLMOps 与生产级 AI | 249 | What is model versioning, and how do you handle model rollbacks? |
+| 334 | LLMOps 与生产级 AI | 250 | How do you implement rate limiting and throttling for LLM APIs? |
+| 335 | LLMOps 与生产级 AI | 251 | How do you handle model updates and migrations without downtime? |
+| 336 | LLMOps 与生产级 AI | 252 | What is the role of feature flags in AI deployments? |
+| 337 | LLMOps 与生产级 AI | 253 | How do you implement logging and tracing for LLM applications? |
+| 338 | LLMOps 与生产级 AI | 254 | How do you handle PII and sensitive data in LLM inputs and outputs? |
+| 339 | LLMOps 与生产级 AI | 255 | What is a gateway pattern for LLM API management? |
+| 340 | LLMOps 与生产级 AI | 待补 | How does Token Streaming work? |
+| 341 | LLMOps 与生产级 AI | 256 | How do you implement streaming responses for real-time AI applications? |
+| 342 | LLMOps 与生产级 AI | 待补 | How does vLLM work? |
+| 343 | LLMOps 与生产级 AI | 待补 | How does SGLang work? |
+| 344 | LLMOps 与生产级 AI | 待补 | How does TensorRT-LLM work? |
+| 345 | LLMOps 与生产级 AI | 待补 | How does llama.cpp run LLMs on everyday hardware? |
+| 346 | LLMOps 与生产级 AI | 待补 | How does Ollama work? |
+| 347 | LLMOps 与生产级 AI | 待补 | When would you choose vLLM vs SGLang vs TensorRT-LLM? |
+| 348 | LLMOps 与生产级 AI | 257 | What are the key SLAs and metrics for production AI systems (latency, throughput, availability)? |
+| 349 | LLMOps 与生产级 AI | 258 | Cloud vs on-device Model Deployment for AI applications. |
+| 350 | LLMOps 与生产级 AI | 259 | How do you implement fallback strategies when the primary model is unavailable or rate-limited? |
+| 351 | LLMOps 与生产级 AI | 260 | How do you implement structured output from LLMs reliably in production? |
+| 352 | LLMOps 与生产级 AI | 261 | How do you handle long contexts efficiently in production (context compression, prefix caching)? |
+| 353 | LLMOps 与生产级 AI | 262 | What is semantic routing, and how do you implement it in a multi-model system? |
+| 354 | LLMOps 与生产级 AI | 263 | How do you manage secrets and API keys securely in LLM applications? |
+| 355 | LLMOps 与生产级 AI | 264 | Your LLM API has latency spikes during peak hours. How do you stabilize it? |
+| 356 | LLMOps 与生产级 AI | 待补 | Your LLM endpoint's p99 latency doubled after a deploy with no model change. How do you diagnose it? |
+| 357 | LLMOps 与生产级 AI | 265 | Your LLM costs are too high in production. How do you reduce costs without degrading quality? |
+| 358 | LLMOps 与生产级 AI | 266 | Your application is hitting LLM provider rate limits during peak hours. How do you handle it? |
+| 359 | LLMOps 与生产级 AI | 267 | Your application depends on one LLM provider. How do you switch providers without downtime? |
+| 360 | LLMOps 与生产级 AI | 268 | Your AI system handles 100 requests/sec but crashes at 5000. How do you scale for concurrent requests? |
+| 361 | LLMOps 与生产级 AI | 269 | A traffic spike brings down your AI system. How do you handle peak traffic? |
+| 362 | LLMOps 与生产级 AI | 270 | One LLM provider outage took down your entire system. How do you eliminate single points of failure? |
+| 363 | LLMOps 与生产级 AI | 271 | Your multi-LLM pipeline fails when one model in the chain breaks. How do you handle orchestration failure? |
+| 364 | LLMOps 与生产级 AI | 272 | Your AI pipeline has zero visibility into which step is failing. How do you add observability? |
+| 365 | LLMOps 与生产级 AI | 273 | You quantized your LLM, but accuracy dropped significantly. How do you minimize quantization loss? |
+| 366 | LLMOps 与生产级 AI | 274 | One failing AI component can take down your entire platform. How do you design graceful degradation? |
+| 367 | 评估与测试 | 待补 | AI Agent Evaluation |
+| 368 | 评估与测试 | 待补 | LLM Evaluation |
+| 369 | 评估与测试 | 待补 | AI Agent Observability |
+| 370 | 评估与测试 | 275 | What is evaluation-driven development for AI applications? |
+| 371 | 评估与测试 | 待补 | Why is AI only as good as our definition of done? |
+| 372 | 评估与测试 | 276 | How do you evaluate LLM outputs? What metrics do you use? |
+| 373 | 评估与测试 | 277 | Explain BLEU, ROUGE, and BERTScore. When would you use each? |
+| 374 | 评估与测试 | 278 | What is G-Eval, and how does it use LLMs for evaluation? |
+| 375 | 评估与测试 | 279 | What is LLM-as-a-judge evaluation, and what are its limitations? |
+| 376 | 评估与测试 | 280 | How do you conduct human evaluation for AI systems? |
+| 377 | 评估与测试 | 281 | What is red teaming, and how do you red team an LLM application? |
+| 378 | 评估与测试 | 282 | How do you detect and measure hallucinations in LLM outputs? |
+| 379 | 评估与测试 | 283 | What is adversarial testing for AI systems? |
+| 380 | 评估与测试 | 284 | How do you build a regression test suite for AI applications? |
+| 381 | 评估与测试 | 285 | What are benchmark suites (MMLU, HumanEval, GSM8K), and how do you interpret them? |
+| 382 | 评估与测试 | 待补 | What is benchmark contamination, and how do you guard against it? |
+| 383 | 评估与测试 | 待补 | Your new model version scores higher on every benchmark, but users say it got worse. Why does this happen, and how do you find the problem? |
+| 384 | 评估与测试 | 286 | How do you evaluate a RAG system end-to-end? |
+| 385 | 评估与测试 | 287 | How do you evaluate the quality of AI agents? |
+| 386 | 评估与测试 | 待补 | How would you evaluate an autonomous coding agent? Why can SWE-bench pass rates be misleading? |
+| 387 | 评估与测试 | 288 | What is the difference between offline and online evaluation for AI systems? |
+| 388 | 评估与测试 | 289 | How do you measure factual consistency in LLM outputs? |
+| 389 | 评估与测试 | 290 | How do you evaluate multi-turn conversation quality? |
+| 390 | 评估与测试 | 291 | What is the role of golden datasets in AI evaluation? |
+| 391 | 评估与测试 | 待补 | How do you build an eval set when there is no labelled ground truth and domain experts are expensive? |
+| 392 | 评估与测试 | 292 | How do you implement continuous evaluation for production AI systems? |
+| 393 | 评估与测试 | 293 | How do you evaluate bias in AI model outputs? |
+| 394 | 评估与测试 | 294 | How do you compare two models or prompts in a statistically rigorous way? |
+| 395 | 评估与测试 | 295 | How do you evaluate the robustness of an LLM application across input variations? |
+| 396 | 评估与测试 | 296 | What are the key differences between evaluating traditional ML vs LLM applications? |
+| 397 | 评估与测试 | 297 | How do you set up an evaluation framework from scratch for a new LLM application? |
+| 398 | 评估与测试 | 298 | Your model passes one fairness metric but fails another. How do you handle conflicting audit results? |
+| 399 | 评估与测试 | 299 | Your model was fair at deployment, but became biased 6 months later. How do you monitor continuously? |
+| 400 | 评估与测试 | 300 | An external auditor cannot reproduce your model's results. How do you ensure audit reproducibility? |
+| 401 | 评估与测试 | 301 | How do you structure red teaming for an LLM chatbot before launch? |
+| 402 | 评估与测试 | 302 | How do you red team a multimodal model where text-only safety tests miss cross-modal attacks? |
+| 403 | AI 安全、伦理与负责任 AI | 303 | What are hallucinations in LLMs, and how do you mitigate them? |
+| 404 | AI 安全、伦理与负责任 AI | 304 | What is prompt injection, and what are the different types (direct, indirect)? |
+| 405 | AI 安全、伦理与负责任 AI | 305 | How do you implement input and output guardrails for AI systems? |
+| 406 | AI 安全、伦理与负责任 AI | 306 | What is AI alignment, and why is it important? |
+| 407 | AI 安全、伦理与负责任 AI | 307 | How do you detect and mitigate bias in AI systems? |
+| 408 | AI 安全、伦理与负责任 AI | 308 | What are the key data privacy considerations (GDPR, CCPA) when building AI applications? |
+| 409 | AI 安全、伦理与负责任 AI | 309 | How do you handle PII in LLM inputs and outputs? |
+| 410 | AI 安全、伦理与负责任 AI | 310 | What is explainability in AI, and why does it matter? |
+| 411 | AI 安全、伦理与负责任 AI | 311 | What is the difference between interpretability and explainability? |
+| 412 | AI 安全、伦理与负责任 AI | 待补 | What is mechanistic interpretability, and why do AI labs invest in it? |
+| 413 | AI 安全、伦理与负责任 AI | 312 | How do you build trust with users in AI-powered applications? |
+| 414 | AI 安全、伦理与负责任 AI | 313 | What are adversarial attacks on AI systems, and how do you defend against them? |
+| 415 | AI 安全、伦理与负责任 AI | 314 | What is data poisoning, and how can it affect AI models? |
+| 416 | AI 安全、伦理与负责任 AI | 315 | How do you implement content safety filters for AI-generated content? |
+| 417 | AI 安全、伦理与负责任 AI | 316 | What is responsible AI, and what frameworks exist for implementing it? |
+| 418 | AI 安全、伦理与负责任 AI | 317 | How do you handle copyright and intellectual property concerns with AI-generated content? |
+| 419 | AI 安全、伦理与负责任 AI | 318 | What is the EU AI Act, and how does it affect AI engineering? |
+| 420 | AI 安全、伦理与负责任 AI | 319 | How do you implement audit trails and logging for AI decisions? |
+| 421 | AI 安全、伦理与负责任 AI | 320 | What is model card documentation, and why is it important? |
+| 422 | AI 安全、伦理与负责任 AI | 321 | How do you handle misuse and abuse of AI systems in production? |
+| 423 | AI 安全、伦理与负责任 AI | 322 | What is differential privacy, and how can it be applied during model training? |
+| 424 | AI 安全、伦理与负责任 AI | 323 | How would you design an AI incident response plan? |
+| 425 | AI 安全、伦理与负责任 AI | 324 | What is the NIST AI Risk Management Framework (AI RMF)? |
+| 426 | AI 安全、伦理与负责任 AI | 325 | Your healthcare chatbot gives medical diagnoses it should not make. How do you add safety guardrails? |
+| 427 | AI 安全、伦理与负责任 AI | 326 | Your AI system is reproducing copyrighted material verbatim. How do you prevent this? |
+| 428 | AI 安全、伦理与负责任 AI | 327 | Your resume screening AI rejects more female candidates for engineering roles. How do you fix gender bias? |
+| 429 | AI 安全、伦理与负责任 AI | 328 | Your AI model passes bias checks by gender and race separately, but fails for intersectional groups. How do you handle it? |
+| 430 | AI 安全、伦理与负责任 AI | 329 | Your AI denied a loan, and the customer demands a GDPR explanation. How do you provide one? |
+| 431 | AI 安全、伦理与负责任 AI | 330 | A user invokes the right to be forgotten, but their data is in your model weights. How do you comply? |
+| 432 | AI 安全、伦理与负责任 AI | 331 | The EU AI Act may classify your AI system as high-risk. How do you comply? |
+| 433 | AI 安全、伦理与负责任 AI | 332 | Your differentially private model lost significant accuracy. How do you balance privacy and utility? |
+| 434 | AI 安全、伦理与负责任 AI | 333 | One malicious participant is poisoning your federated learning model. How do you defend against it? |
+| 435 | AI 安全、伦理与负责任 AI | 334 | Your AI hiring model uses proxy features for protected attributes. How do you eliminate proxy discrimination? |
+| 436 | AI 安全、伦理与负责任 AI | 335 | Your predictive model creates a feedback loop of biased outcomes. How do you break it? |
+| 437 | AI 安全、伦理与负责任 AI | 336 | Your AI generates fake news images. How do you implement watermarking for AI-generated content? |
+| 438 | AI 安全、伦理与负责任 AI | 337 | Your AI denies a service, and the user has no way to challenge it. How do you design an appeals process? |
+| 439 | AI 安全、伦理与负责任 AI | 338 | An auditor asks why your AI rejected a request 6 months ago, and you have no logs. How do you build audit trails? |
+| 440 | AI 安全、伦理与负责任 AI | 339 | You removed PII, but users were re-identified from anonymized data. How do you prevent re-identification? |
+| 441 | AI 安全、伦理与负责任 AI | 340 | A pre-trained model from an open-source repo may contain a hidden backdoor. How do you detect it? |
+| 442 | AI 安全、伦理与负责任 AI | 341 | Your LLM's training data was deliberately poisoned by an adversary. How do you respond? |
+| 443 | AI 安全、伦理与负责任 AI | 342 | Your AI mental health chatbot gave harmful advice to a user in crisis. How do you mitigate harm? |
+| 444 | AI 安全、伦理与负责任 AI | 343 | Your AI system caused incorrect critical decisions. How do you run a blameless post-mortem? |
+| 445 | AI 安全、伦理与负责任 AI | 344 | Radiologists agree with AI 98% of the time, even when it is wrong. How do you prevent human over-reliance on AI? |
+| 446 | AI 安全、伦理与负责任 AI | 345 | Your content moderation flags normal cultural expressions as offensive in other markets. How do you adapt cross-culturally? |
+| 447 | AI 安全、伦理与负责任 AI | 346 | Your AI training produces massive carbon emissions. How do you reduce environmental impact? |
+| 448 | 多模态 AI | 347 | What are Multimodal AI models, and how do they process different types of data? |
+| 449 | 多模态 AI | 348 | How do vision-language models process images? |
+| 450 | 多模态 AI | 480 | How do Image Embeddings work? |
+| 451 | 多模态 AI | 349 | How does CLIP work, and why is it important for multi-modal AI? |
+| 452 | 多模态 AI | 350 | What are the key architectures for multi-modal models? |
+| 453 | 多模态 AI | 351 | How does image generation work with diffusion models (Stable Diffusion, DALL-E, Flux)? |
+| 454 | 多模态 AI | 352 | What is text-to-speech (TTS), and what models are used for it? |
+| 455 | 多模态 AI | 353 | How does speech-to-text (Whisper) work? |
+| 456 | 多模态 AI | 481 | Budget the end-to-end latency for a real-time voice agent (VAD, ASR, LLM, TTS, network). Where does the time go? |
+| 457 | 多模态 AI | 482 | What is turn-taking in a voice AI agent, and how does it detect when the user has finished speaking? |
+| 458 | 多模态 AI | 483 | How does sentence chunking reduce the latency of a voice agent? |
+| 459 | 多模态 AI | 484 | How do you handle barge-in (user interruptions) in a voice agent? |
+| 460 | 多模态 AI | 485 | Cascaded ASR + LLM + TTS vs native speech-to-speech models: what are the trade-offs? |
+| 461 | 多模态 AI | 354 | What is multi-modal RAG, and how does it differ from text-only RAG? |
+| 462 | 多模态 AI | 355 | How do you build a system that processes both images and text? |
+| 463 | 多模态 AI | 356 | What are multi-modal embeddings, and how are they used for cross-modal search? |
+| 464 | 多模态 AI | 357 | How do you evaluate multi-modal AI systems? |
+| 465 | 多模态 AI | 358 | What are the challenges of real-time multi-modal AI processing? |
+| 466 | 多模态 AI | 359 | How do you handle video understanding with AI? |
+| 467 | 多模态 AI | 360 | What is visual question answering (VQA)? |
+| 468 | 多模态 AI | 361 | What is document understanding, and how do models parse documents with layouts? |
+| 469 | 多模态 AI | 362 | How do you fine-tune a vision-language model? |
+| 470 | 多模态 AI | 363 | What are the latency and cost considerations for multi-modal AI in production? |
+| 471 | 多模态 AI | 364 | How do you handle multi-modal content moderation? |
+| 472 | 多模态 AI | 365 | What is text-to-video generation, and what are the current state-of-the-art approaches? |
+| 473 | 多模态 AI | 366 | Explain Multimodal Fusion Techniques: Early Fusion vs Late Fusion. |
+| 474 | 多模态 AI | 367 | Your vision-language model generates factually incorrect image descriptions. How do you fix it? |
+| 475 | 多模态 AI | 368 | Your VLM answers single-image questions but fails on multi-page documents. How do you fix it? |
+| 476 | 多模态 AI | 369 | Your multimodal LLM ignores the image and generates descriptions from text alone. How do you fix it? |
+| 477 | 多模态 AI | 370 | Your diffusion model ignores precise control requirements in text prompts. How do you improve controllability? |
+| 478 | 多模态 AI | 371 | Your diffusion model generates sharp but repetitive images. How do you balance quality vs diversity? |
+| 479 | 多模态 AI | 372 | Your diffusion model takes too long per image. How do you speed up sampling? |
+| 480 | AI 基础设施与可扩展性 | 待补 | How do you improve inference speed in production LLM deployments? |
+| 481 | AI 基础设施与可扩展性 | 373 | LLM optimization techniques |
+| 482 | AI 基础设施与可扩展性 | 374 | How do you select GPUs for LLM inference? |
+| 483 | AI 基础设施与可扩展性 | 待补 | How does a GPU work for Deep Learning? |
+| 484 | AI 基础设施与可扩展性 | 待补 | How do CUDA Kernels work? |
+| 485 | AI 基础设施与可扩展性 | 待补 | How does a Google TPU work? |
+| 486 | AI 基础设施与可扩展性 | 待补 | How does an LPU work? |
+| 487 | AI 基础设施与可扩展性 | 待补 | Estimate the GPU memory needed to serve a 70B model (weights, KV cache, activations). Does it fit on a single 80 GB GPU? |
+| 488 | AI 基础设施与可扩展性 | 待补 | Do the roofline math: how many tokens/sec can one H100 produce for a 70B model at batch size 1? |
+| 489 | AI 基础设施与可扩展性 | 375 | What is model parallelism vs data parallelism in distributed training? |
+| 490 | AI 基础设施与可扩展性 | 376 | What is tensor parallelism, and how does it help serve large models? |
+| 491 | AI 基础设施与可扩展性 | 377 | What is pipeline parallelism? |
+| 492 | AI 基础设施与可扩展性 | 378 | How does continuous batching improve LLM inference throughput? |
+| 493 | AI 基础设施与可扩展性 | 379 | What is speculative decoding, and how does it speed up inference? |
+| 494 | AI 基础设施与可扩展性 | 待补 | How does Medusa (multi-head speculative decoding) work? |
+| 495 | AI 基础设施与可扩展性 | 待补 | How does EAGLE (feature-level speculative decoding) work? |
+| 496 | AI 基础设施与可扩展性 | 待补 | What is N-gram Speculation in LLMs, and how does it speed up generation? |
+| 497 | AI 基础设施与可扩展性 | 380 | What is KV cache, and how do you manage memory for it? |
+| 498 | AI 基础设施与可扩展性 | 381 | What is Paged Attention? |
+| 499 | AI 基础设施与可扩展性 | 待补 | How does GGUF work? |
+| 500 | AI 基础设施与可扩展性 | 382 | How do you optimize inference for edge and mobile deployment? |
+| 501 | AI 基础设施与可扩展性 | 383 | What is model quantization (INT8, INT4, FP16, BF16), and how does it affect quality? |
+| 502 | AI 基础设施与可扩展性 | 384 | How do you implement auto-scaling for AI workloads? |
+| 503 | AI 基础设施与可扩展性 | 385 | What is the role of load balancing in AI serving infrastructure? |
+| 504 | AI 基础设施与可扩展性 | 386 | How do you manage GPU memory for serving multiple models? |
+| 505 | AI 基础设施与可扩展性 | 387 | What is model sharding, and when would you use it? |
+| 506 | AI 基础设施与可扩展性 | 388 | How do you implement request queuing and priority scheduling for AI services? |
+| 507 | AI 基础设施与可扩展性 | 389 | What are the cost trade-offs between self-hosted and API-based AI inference? |
+| 508 | AI 基础设施与可扩展性 | 390 | How do you handle cold start latency for serverless AI deployments? |
+| 509 | AI 基础设施与可扩展性 | 391 | How do you implement model caching to reduce redundant computations? |
+| 510 | AI 基础设施与可扩展性 | 392 | What is the difference between synchronous and asynchronous inference, and when do you use each? |
+| 511 | AI 基础设施与可扩展性 | 393 | What is FSDP (Fully Sharded Data Parallel), and how does it differ from DeepSpeed ZeRO? |
+| 512 | AI 基础设施与可扩展性 | 待补 | What are TTFT, TPOT, and throughput, and how do they trade against each other? |
+| 513 | AI 基础设施与可扩展性 | 394 | How do you monitor and profile LLM inference in production (TTFT, inter-token latency, GPU utilization)? |
+| 514 | AI 基础设施与可扩展性 | 395 | What is model routing at the infrastructure level, and how do you route requests based on complexity and cost? |
+| 515 | 编码与实践实现 | 396 | Implement a basic RAG pipeline using an embedding model and a vector database. |
+| 516 | 编码与实践实现 | 397 | Build a simple AI agent with tool use (e.g., calculator, web search). |
+| 517 | 编码与实践实现 | 398 | Implement semantic search using embeddings and cosine similarity. |
+| 518 | 编码与实践实现 | 399 | Write code for different text chunking strategies (fixed-size, recursive, semantic). |
+| 519 | 编码与实践实现 | 400 | Implement a prompt template system with variable substitution. |
+| 520 | 编码与实践实现 | 401 | Build an evaluation pipeline for LLM outputs using LLM-as-a-judge. |
+| 521 | 编码与实践实现 | 402 | Implement streaming responses for an LLM API. |
+| 522 | 编码与实践实现 | 403 | Build a simple vector similarity search from scratch. |
+| 523 | 编码与实践实现 | 404 | Implement a conversation memory system for a chatbot (sliding window, summary, buffer). |
+| 524 | 编码与实践实现 | 405 | Write code to detect and handle hallucinations in LLM outputs. |
+| 525 | 编码与实践实现 | 406 | Implement a retry mechanism with exponential backoff for LLM API calls. |
+| 526 | 编码与实践实现 | 407 | Write a function calling (tool use) handler for an LLM API. |
+| 527 | 编码与实践实现 | 408 | Implement a simple re-ranker for search results. |
+| 528 | 编码与实践实现 | 409 | Build a basic document parser that extracts text from PDFs and splits it into chunks. |
+| 529 | 编码与实践实现 | 410 | Implement cosine similarity, dot product, and Euclidean distance functions from scratch. |
+| 530 | 编码与实践实现 | 411 | Write code to implement token counting and context window management. |
+| 531 | 编码与实践实现 | 412 | Build a simple prompt versioning system. |
+| 532 | 编码与实践实现 | 413 | Implement a caching layer for LLM responses. |
+| 533 | 编码与实践实现 | 414 | Implement semantic caching for LLM queries (cache responses for semantically similar queries). |
+| 534 | 编码与实践实现 | 415 | Write code to detect prompt injection attempts in user inputs. |
+| 535 | 编码与实践实现 | 416 | Implement an LLM output guardrails system that checks for off-topic responses and PII leakage. |
+| 536 | 编码与实践实现 | 417 | Build a multi-agent system where agents have different roles and collaborate on a task. |
+| 537 | 编码与实践实现 | 待补 | Implement scaled dot-product attention with a causal mask from scratch (NumPy or PyTorch). |
+| 538 | 编码与实践实现 | 待补 | Implement multi-head attention, then convert it to grouped-query attention. |
+| 539 | 编码与实践实现 | 待补 | Implement a KV cache and single-step decode for causal multi-head attention. |
+| 540 | 编码与实践实现 | 待补 | Implement BPE (Byte Pair Encoding) training and encoding from scratch. |
+| 541 | 编码与实践实现 | 待补 | Implement top-k, top-p, and temperature sampling over a logits vector. |
+| 542 | 编码与实践实现 | 待补 | Implement an LRU cache with O(1) get/put, then add per-entry TTL. |
+| 543 | 编码与实践实现 | 待补 | Implement a token-bucket rate limiter for an LLM API where cost scales with tokens, then make it distributed. |
+| 544 | 编码与实践实现 | 待补 | Write an async batch processor that runs an LLM call over 50,000 documents with a concurrency limit, retries with jitter, and error isolation. |
+| 545 | 编码与实践实现 | 待补 | Write a streaming SSE parser for LLM token streams that handles arbitrary chunk boundaries. |
+| 546 | 编码与实践实现 | 待补 | Implement a minimal agent loop with tool dispatch, error handling, and a step budget. |
+| 547 | 行为与场景题 | 418 | What is AI Engineering, and how does it differ from Machine Learning Engineering? |
+| 548 | 行为与场景题 | 419 | How do you decide whether a problem needs AI or a traditional software solution? |
+| 549 | 行为与场景题 | 420 | How do you measure the ROI of an AI feature? |
+| 550 | 行为与场景题 | 421 | How do you handle hallucinations when they occur in a production AI system? |
+| 551 | 行为与场景题 | 422 | How do you decide between using an LLM API vs self-hosting an open-source model? |
+| 552 | 行为与场景题 | 423 | How do you manage stakeholder expectations for AI projects? |
+| 553 | 行为与场景题 | 424 | Describe your approach to debugging a poor-performing RAG system. |
+| 554 | 行为与场景题 | 425 | How do you stay current with the rapidly evolving AI landscape? |
+| 555 | 行为与场景题 | 426 | How do you balance innovation with reliability in AI systems? |
+| 556 | 行为与场景题 | 427 | Tell me about a challenging AI project you worked on. What was the problem? What approach did you take? What trade-offs did you make? What was the outcome? |
+| 557 | 行为与场景题 | 428 | How would you handle a situation where an AI model produces biased or harmful outputs in production? |
+| 558 | 行为与场景题 | 429 | How do you approach cost optimization for an AI system that's exceeding budget? |
+| 559 | 行为与场景题 | 430 | Describe a time when you had to choose between model accuracy and latency. How did you make the decision? |
+| 560 | 行为与场景题 | 431 | How would you handle a situation where your AI system's quality degrades over time? |
+| 561 | 行为与场景题 | 432 | How do you communicate AI limitations to non-technical stakeholders? |
+| 562 | 行为与场景题 | 433 | How would you approach building an AI feature with limited labeled data? |
+| 563 | 行为与场景题 | 434 | Describe your experience working with cross-functional teams on AI projects. |
+| 564 | 行为与场景题 | 435 | Where do you see AI engineering heading in the next 3-5 years? |
+| 565 | 行为与场景题 | 436 | Why are you interested in this AI engineering role? |
+| 566 | 行为与场景题 | 437 | Your PM wants to ship an AI feature with a 15% hallucination rate on edge cases. How do you communicate the risk? |
+| 567 | 行为与场景题 | 438 | A non-technical executive asks why your AI feature cannot be 100% accurate. How do you explain LLM limitations? |
+| 568 | 行为与场景题 | 439 | You need to choose between a complex agentic system that scores 15% better on benchmarks, or a simpler RAG pipeline that is easier to maintain. How do you decide? |
+
+本仓独有题（无对应上游题，共 40 题）：440、441、442、443、444、445、446、447、448、449、450、451、452、453、454、455、456、457、458、459、460、461、462、463、464、465、466、467、468、469、470、471、472、473、474、475、476、477、478、479。
+
+上游已删除、本仓保留的题：200（上游原题 “Design an AI-powered customer support chatbot.”，在上游 `ff491d1` 中删除）；201（上游原题 “Design a document Q&A system for enterprise use.”，在上游 `ff491d1` 中删除）。
+
+<!-- mapping:end -->
 
 ### 参考资料
 
