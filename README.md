@@ -56,6 +56,8 @@
 > 2026-10-24 增补（第 5 批）：新增 550–563 题（LLMOps 与生产级 AI 章节缺失的 14 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 >
 > 2026-10-24 增补（第 6 批）：新增 564–576 题（AI 基础设施与可扩展性章节缺失的 12 题，以及 AI 安全章节缺失的 1 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
+>
+> 2026-10-24 增补（第 7 批）：新增 577–592 题（检索增强生成 RAG 5 题、微调与模型适配 7 题、向量数据库与 Embedding 4 题），按上游顺序插入对应位置，已有题号不变；题号对照表同步更新。
 
 每个问题都按五层组织：
 
@@ -1322,6 +1324,17 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“检索增强生成 RAG”中的知识接入层，决定外部事实能否被正确召回、排序、引用和更新。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“recall@k、context precision、faithfulness、引用准确率、拒答准确率”验证答案，而不是只依赖主观感觉。
 
+#### 577. 什么是 Contextual Retrieval（上下文检索）？它如何改进 RAG？
+**答：** 传统 RAG 把文档切成块后单独做 embedding 和 BM25 索引，但块一旦脱离原文就会丢失上下文。例如某块写着“该公司本季度收入增长 3%”，却没说是哪家公司、哪个季度，检索“某公司 2023 年第二季度收入”时就很难命中。Contextual Retrieval 在建索引前，用 LLM 为每个块生成一小段说明它在整篇文档中位置和背景的上下文（如“本块出自 X 公司 2023 年 Q2 财报，讨论收入表现”），把这段上下文拼接到块前面，再分别做 embedding（上下文 embedding）和 BM25 索引（上下文 BM25）。
+**深入展开：** 效果：检索失败率明显下降，与 BM25 混合检索、再加重排序一起使用时提升更大。成本：每个块都要调用一次 LLM，生成时需要把整篇文档放进提示；可以利用提示缓存，让同一文档的所有块共享文档前缀的缓存，大幅降低成本。注意：生成的上下文要简短；只在索引阶段增加成本，查询阶段几乎不变；文档更新时需要重新生成对应块的上下文。
+**后续追问：** 追问常见于：与简单地给块加标题或元数据有何不同？成本如何控制？和重排序如何配合？
+**上游参考：** [How does Contextual Retrieval work?](https://outcomeschool.com/blog/how-does-contextual-retrieval-work)
+**扩展问题：**
+- 如果文档非常长，超出 LLM 的上下文窗口，如何为块生成上下文？
+- 如何评估加入上下文前后检索效果的变化？
+- 哪些类型的文档最能从 Contextual Retrieval 中受益？
+**推理回答：** 先举例说明“块脱离上下文”的问题，再讲用 LLM 为每块生成上下文并同时用于 embedding 和 BM25 的做法，最后讨论成本与提示缓存。
+
 #### 87. embedding 模型是什么？它如何把文本变成向量？
 **答：** Embedding 模型把文本输入编码成固定维度向量，使语义相近的文本在向量空间中更接近。训练目标通常包括对比学习、相似句匹配或检索任务。向量不是文本的无损压缩，因此对数字、否定、细粒度逻辑和短查询可能表现不稳。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在 RAG 题中，要拆开离线索引和在线问答链路，分别讨论解析、分块、embedding、召回、重排、上下文组装、引用和监控。
@@ -1372,6 +1385,28 @@
 - 应该用哪些实验、指标或日志证明对“re-ranking”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“检索增强生成 RAG”中的知识接入层，决定外部事实能否被正确召回、排序、引用和更新。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“recall@k、context precision、faithfulness、引用准确率、拒答准确率”验证答案，而不是只依赖主观感觉。
 
+#### 578. 什么是 ColBERT？后期交互（late interaction）检索是如何工作的？
+**答：** 检索模型有两类极端：双编码器（bi-encoder）把查询和文档各自压缩成一个向量，用点积比较，速度快但细节损失大；交叉编码器（cross-encoder）把查询和文档拼在一起输入模型，精度高但每对都要跑一次模型，无法用于大规模检索。ColBERT 采用后期交互：查询和文档分别编码，但不压缩成单个向量，而是为每个 token 保留一个向量；打分时对查询的每个 token 向量，在文档的所有 token 向量中找最大相似度（MaxSim），再把这些最大值相加。
+**深入展开：** 优点：文档的 token 向量可以离线预先计算并索引，查询时只需编码查询，保留了 token 级别的细粒度匹配，精度接近交叉编码器、速度接近双编码器。代价：每个 token 一个向量，存储量远大于单向量方案；ColBERTv2 通过残差压缩等方法减小存储，后续的 PLAID 等引擎加快检索。常见用法：作为第一阶段检索器，或作为对候选集重排序的模型。
+**后续追问：** 追问常见于：MaxSim 是怎么计算的？存储开销有多大？和交叉编码器相比精度差多少？
+**上游参考：** [ColBERT - Late Interaction Retrieval Explained](https://outcomeschool.com/blog/decoding-colbert)
+**扩展问题：**
+- 一个包含 100 万篇文档、平均 200 token 的语料，用 ColBERT 索引大约需要多少向量？如何压缩？
+- 为什么后期交互比单向量更擅长处理包含多个关键概念的查询？
+- 你会在什么场景下选择 ColBERT 而不是“双编码器 + 交叉编码器重排”？
+**推理回答：** 先对比双编码器和交叉编码器，再说明 ColBERT 的 token 级向量与 MaxSim 打分，最后讨论存储代价和使用方式。
+
+#### 579. 比较几种重排序器架构：交叉编码器、ColBERT 和基于 LLM 的重排序器。
+**答：** 重排序器对第一阶段检索出的候选（如前 50–100 个）重新打分，选出最相关的少数几个交给 LLM。①交叉编码器：把查询和每个候选拼接后输入 Transformer，直接输出相关性分数，查询与文档的每个 token 充分交互，精度高；每个候选都要跑一次模型，成本随候选数线性增长。②ColBERT：查询与文档分别编码为 token 级向量，用 MaxSim 打分，文档向量可预计算，速度快，精度略低于交叉编码器。③LLM 重排序：用大语言模型逐个打分（pointwise）、两两比较（pairwise）或对一组候选整体排序（listwise），理解能力最强，能处理复杂指令和推理型相关性，但延迟和成本最高，并且输出可能不稳定，有位置偏差。
+**深入展开：** 选型：延迟敏感、量大时用 ColBERT 或轻量交叉编码器；大多数 RAG 系统的默认选择是交叉编码器重排前几十个候选；需要复杂判断（如“找出与该法律条款矛盾的段落”）且量不大时考虑 LLM 重排。也可以级联：先 ColBERT 或交叉编码器筛到前 20，再用 LLM 重排前几名。评估要看重排后 top-k 的召回率和 NDCG，以及端到端回答质量与延迟。
+**后续追问：** 追问常见于：重排序放在流水线哪一步？候选数量如何选择？LLM 重排的位置偏差如何缓解？
+**上游参考：** [How does a Reranker work?](https://outcomeschool.com/blog/how-does-a-reranker-work)、[ColBERT - Late Interaction Retrieval Explained](https://outcomeschool.com/blog/decoding-colbert)
+**扩展问题：**
+- 重排序后端到端回答质量没有提升，可能是什么原因？
+- listwise 的 LLM 重排在候选很多时如何处理上下文长度限制？
+- 如何为业务数据微调一个交叉编码器？
+**推理回答：** 先说明重排序在 RAG 中的位置，再从交互方式、精度、成本三个维度比较三种架构，最后给出选型和级联建议。
+
 #### 92. RAG 如何处理多文档和多跳问题？
 **答：** 可用查询分解、迭代检索、实体链接、Graph RAG 和中间答案验证。系统要能把多个证据片段组合起来，并保留每个结论的来源。多跳任务需要评估上下文召回和推理正确性，不能只看单片段相似度。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在 RAG 题中，要拆开离线索引和在线问答链路，分别讨论解析、分块、embedding、召回、重排、上下文组装、引用和监控。
@@ -1421,6 +1456,17 @@
 - 如果把“Graph RAG”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“Graph RAG”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“检索增强生成 RAG”中的知识接入层，决定外部事实能否被正确召回、排序、引用和更新。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“recall@k、context precision、faithfulness、引用准确率、拒答准确率”验证答案，而不是只依赖主观感觉。
+
+#### 580. 什么是 Vectorless RAG（无向量 RAG）？
+**答：** Vectorless RAG 是一种不把文档转成向量、也不使用向量数据库的 RAG 方法。它的做法更像人读书：先为文档构建一个层次化的树状结构（类似目录：章节、小节、段落，每个节点附上标题和摘要），查询时让 LLM 从根节点开始阅读这些标题和摘要，推理判断哪个分支最可能包含答案，逐层深入，最后打开相关的原文段落来回答。
+**深入展开：** 优点：①检索依据是推理而不是语义相似度，能处理“相似但不相关”的问题（向量检索常把措辞相近但内容无关的块排在前面）；②保留文档结构，不会因为切块而破坏上下文；③检索路径可解释，可以看到 LLM 为什么打开某一节；④不需要维护 embedding 模型和向量库。缺点：每次查询需要多次 LLM 调用，延迟和成本更高；适合结构清晰的长文档（财报、法规、手册、合同），不适合海量、零散、无结构的文档集合。实践中也可以与向量检索结合：先用向量或关键词缩小文档范围，再在文档内部用树导航。
+**后续追问：** 追问常见于：树结构如何构建？与向量 RAG 各适合什么场景？成本和延迟如何？
+**上游参考：** [Vectorless RAG](https://outcomeschool.com/blog/vectorless-rag)
+**扩展问题：**
+- 一份 300 页、目录清晰的保险条款，你会选择向量 RAG 还是无向量 RAG？为什么？
+- 如果文档没有明确的章节结构，如何构建树？
+- 如何降低树导航的 LLM 调用次数？
+**推理回答：** 先说明“像人读书一样按结构导航”的核心思想和流程，再分析相对向量 RAG 的优缺点，最后给出适用场景和混合用法。
 
 #### 97. RAG 如何处理表格、SQL 数据库等结构化数据？
 **答：** 对 SQL 应优先用 text-to-SQL 或受限查询工具，而不是把整表 embedding。对表格文档可保留表头、行列关系和单元格坐标，必要时用表格解析模型。生成答案时要引用查询结果或表格位置，并防止模型编造数值。
@@ -1481,6 +1527,17 @@
 - 在不能停机、预算有限或合规要求更强时，方案应如何调整？
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“检索增强生成 RAG”中的知识接入层，决定外部事实能否被正确召回、排序、引用和更新。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“recall@k、context precision、faithfulness、引用准确率、拒答准确率”验证答案，而不是只依赖主观感觉。
+
+#### 581. 长上下文窗口越来越便宜。什么时候应该用检索（RAG），什么时候直接把所有内容放进上下文？
+**答：** 直接放进上下文的条件：资料总量能放进窗口且留有余量；资料相对固定，可以利用提示缓存降低重复成本；任务需要通读全文做综合推理（如总结整份合同、跨章节对比）；对延迟要求不苛刻。应该用 RAG 的条件：资料远大于上下文窗口（企业知识库、数百万文档）；资料频繁更新；需要按用户权限过滤内容；需要给出精确的引用来源；高并发场景中每次都塞满上下文的成本和延迟不可接受。
+**深入展开：** 长上下文的隐患：①“迷失在中间”（lost in the middle）：模型对位于长上下文中间的信息利用较差，开头和结尾的信息效果更好；②无关内容越多，干扰越大，准确率可能下降；③每个请求的 prefill 计算和 KV cache 显存随长度增长，延迟和成本上升。实践中常把二者结合：用检索选出相关的较大片段（甚至整篇相关文档），再利用长上下文让模型充分阅读；或对固定的核心资料用长上下文加缓存，对海量资料用检索。决策时用自己的评估集对比两种方案的准确率、延迟和成本。
+**后续追问：** 追问常见于：什么是迷失在中间？提示缓存如何改变这个决策？二者如何结合？
+**上游参考：** [The Lost in the Middle Problem in LLMs](https://outcomeschool.com/blog/lost-in-the-middle-problem-in-llms)
+**扩展问题：**
+- 一个客服机器人有 200 页固定的产品手册，你会怎么选？如果手册每天更新呢？
+- 如何设计实验比较 RAG 和长上下文方案？
+- 长上下文中关键信息的放置位置对效果有什么影响？
+**推理回答：** 分别列出适合长上下文和适合 RAG 的条件，再说明长上下文的质量与成本隐患，最后给出结合方式和用评估决策的原则。
 
 #### 103. RAG 中的 query transformation 是什么？
 **答：** Query transformation 是把原始问题改写成更利于检索的查询，方法包括 HyDE、查询分解、step-back prompting、同义词扩展和实体标准化。它能改善短查询、模糊查询和多跳问题。风险是改写偏离用户意图，因此需要保留原始问题并评估改写质量。
@@ -2316,6 +2373,17 @@
 - 应该用哪些实验、指标或日志证明对“QLoRA”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“微调与模型适配”中的模型适配层，决定行为、风格、格式和领域能力是否稳定迁移。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“验证集质量、过拟合差距、灾难性遗忘指标、安全回归、推理成本”验证答案，而不是只依赖主观感觉。
 
+#### 582. 微调是如何工作的？
+**答：** 微调是在已经预训练好的模型基础上，用较小的、针对特定任务或领域的数据继续训练，让模型适应新任务。预训练让模型学会通用的语言知识；微调则调整模型的部分或全部权重，使其学会特定的格式、风格、领域知识或行为。过程与训练相同：准备输入与期望输出的样本 → 前向计算 → 与期望输出比较计算损失（通常只对回答部分计算）→ 反向传播 → 用较小的学习率更新权重，训练若干轮。
+**深入展开：** 方式：①全参数微调：更新所有权重，效果最好但显存和存储成本高；②参数高效微调（PEFT）：冻结原模型，只训练少量新增参数，如 LoRA（在权重旁加低秩矩阵）、QLoRA（在 4 bit 量化模型上做 LoRA）、Adapter、Prefix Tuning。注意事项：数据质量比数量更重要；学习率过大或训练过久会导致过拟合和灾难性遗忘（丢失原有能力）；要留出验证集并做对比评估。何时微调：需要稳定的输出格式或风格、提示工程无法达到要求、需要缩短提示降低成本；如果主要是补充知识，通常先考虑 RAG。
+**后续追问：** 追问常见于：全参数微调和 LoRA 怎么选？什么是灾难性遗忘？微调与 RAG 如何选择？需要多少数据？
+**上游参考：** [How does fine-tuning work?](https://outcomeschool.com/blog/how-does-fine-tuning-work)
+**扩展问题：**
+- 只有 500 条高质量样本，你会如何微调并防止过拟合？
+- 微调后模型在原有通用任务上的表现下降了，如何缓解？
+- 为什么微调时通常只对回答部分计算损失？
+**推理回答：** 先给出定义和训练流程，再区分全参数和参数高效方法，最后讨论风险和何时应该微调。
+
 #### 157. Prefix Tuning 和 Prompt Tuning 是什么？与 LoRA 有何不同？
 **答：** Prompt/Prefix Tuning 学习一组连续提示向量，注入输入或每层注意力前缀；LoRA 学习权重增量。前者参数更少、侵入性低，但表达能力可能弱；LoRA 通常适配能力更强。选择取决于任务复杂度、数据量和部署约束。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在微调题中，要区分知识注入、行为适配、格式稳定和领域语言学习，并说明数据准备、训练策略、过拟合控制和上线评估。
@@ -2336,6 +2404,17 @@
 - 应该用哪些实验、指标或日志证明对“Adapter-based fine-tuning”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“微调与模型适配”中的模型适配层，决定行为、风格、格式和领域能力是否稳定迁移。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“验证集质量、过拟合差距、灾难性遗忘指标、安全回归、推理成本”验证答案，而不是只依赖主观感觉。
 
+#### 583. 解释预训练、监督微调（SFT）和偏好优化（RLHF/DPO）之间的区别。
+**答：** 这是现代对话模型训练的三个阶段（InstructGPT 确立了这一流程）。①预训练：在海量无标注文本上做下一个 token 预测，模型学到语言、知识和推理能力，但只会“续写”，不会按指令回答。②监督微调（SFT）：用人工编写的“指令—理想回答”样本训练，让模型学会遵循指令、按对话格式回答。数据量远小于预训练，但质量要求高。③偏好优化：收集人类对同一提示多个回答的偏好比较，让模型更倾向于生成人类偏好的回答（更有帮助、更诚实、更无害）。RLHF 先训练奖励模型，再用 PPO 等强化学习算法优化策略模型，同时用 KL 惩罚防止偏离 SFT 模型太远；DPO 直接用偏好对构造损失函数来优化模型，不需要单独的奖励模型和强化学习循环。
+**深入展开：** 为什么需要第三阶段：SFT 只能模仿示范，而很多质量差异难以写成示范，却容易比较（判断哪个回答更好比写出完美回答容易）。三个阶段的数据和目标：预训练——海量文本、学能力；SFT——示范数据、学格式和指令遵循；偏好优化——比较数据、对齐人类偏好。此外还有基于可验证奖励的强化学习（RLVR），用于数学、代码等可以自动判对错的任务。
+**后续追问：** 追问常见于：为什么不能只做 SFT？RLHF 中的 KL 惩罚有什么作用？DPO 和 RLHF 有什么区别？
+**上游参考：** [Decoding InstructGPT](https://outcomeschool.com/blog/decoding-instructgpt)
+**扩展问题：**
+- 如果 SFT 数据质量较差，后续偏好优化能弥补吗？
+- 奖励模型被“钻空子”（reward hacking）时会出现什么现象？
+- 为什么说比较两个回答比写出理想回答更容易？
+**推理回答：** 按三个阶段依次说明数据、目标和得到的能力，再解释为什么需要偏好优化以及 RLHF 和 DPO 的实现差别。
+
 #### 159. 什么是 RLHF？如何用于对齐 LLM？
 **答：** RLHF 广义上利用人类反馈对齐模型；经典做法是 SFT 后收集偏好、训练显式奖励模型，再用 PPO 等算法优化策略并限制偏离参考模型。DPO 等偏好优化方法则可直接训练策略，不需要单独拟合显式奖励模型。人类反馈、可验证奖励与具体优化算法应分别说明，不能混为一个固定流程。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在微调题中，要区分知识注入、行为适配、格式稳定和领域语言学习，并说明数据准备、训练策略、过拟合控制和上线评估。
@@ -2345,6 +2424,28 @@
 - 如果把“RLHF”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“RLHF”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“微调与模型适配”中的模型适配层，决定行为、风格、格式和领域能力是否稳定迁移。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“验证集质量、过拟合差距、灾难性遗忘指标、安全回归、推理成本”验证答案，而不是只依赖主观感觉。
+
+#### 584. 什么是“基于人类偏好的深度强化学习”（Deep RL from Human Preferences），这篇开启 RLHF 的论文讲了什么？
+**答：** 这是 Christiano 等人 2017 年的论文（OpenAI 与 DeepMind 合作）。它要解决的问题是：很多任务很难手工写出奖励函数，但人类能判断哪种行为更好。方法：智能体在环境中产生行为片段；人类观看两个短片段并选出更好的一个；用这些比较数据训练一个奖励模型（预测人类会偏好哪个片段）；再用强化学习按这个学到的奖励训练智能体；三者交替进行，不断收集新的比较。
+**深入展开：** 论文的主要发现：只需对少量片段做人类比较（相对于智能体的总交互量非常少），就能在 Atari 游戏和 MuJoCo 机器人仿真任务上学到良好行为，甚至学会难以用奖励函数描述的新行为（如让仿真机器人做后空翻）。意义：它证明了“从人类比较中学习奖励模型 + 强化学习”这一范式可行，后来被用到语言模型上：先用于文本摘要，再到 InstructGPT 和 ChatGPT，形成了今天的 RLHF。论文也讨论了风险：智能体可能利用奖励模型的漏洞，因此需要持续在线收集新的比较。
+**后续追问：** 追问常见于：为什么用比较而不是直接打分？奖励模型如何训练？这篇论文和 InstructGPT 的关系？
+**上游参考：** [Deep RL from Human Preferences](https://outcomeschool.com/blog/decoding-deep-rl-from-human-preferences)
+**扩展问题：**
+- 为什么人类比较两个片段比给单个片段打绝对分数更可靠？
+- 在线持续收集比较数据为什么能缓解奖励模型被利用的问题？
+- 把这个方法从游戏迁移到语言模型时，主要有哪些变化？
+**推理回答：** 先说明问题动机（奖励难写、偏好易给），再描述片段比较、奖励模型、强化学习交替进行的方法和实验结论，最后讲它对 RLHF 的影响。
+
+#### 585. 为什么 DPO 在很多实验室取代了基于 PPO 的 RLHF？什么时候在线强化学习仍然更好？
+**答：** 基于 PPO 的 RLHF 需要训练奖励模型，然后在训练中同时维护策略模型、参考模型、奖励模型和价值（critic）模型，并在线采样生成回答，工程复杂、显存占用大、超参数敏感、训练不稳定。DPO（直接偏好优化）从数学上证明了在 KL 约束下的最优策略与奖励之间存在闭式关系，于是可以直接用偏好对（更好的回答、更差的回答）构造一个分类式损失，提高好回答相对于参考模型的概率、降低差回答的概率。不需要奖励模型、不需要在线采样，只需要策略模型和参考模型，训练像 SFT 一样简单稳定。
+**深入展开：** 在线强化学习仍然更好的情况：①DPO 是离线方法，只在固定的偏好数据上学习，无法探索数据之外的回答；当模型能力提升后，旧的偏好数据分布会过时；②对于有可验证奖励的任务（数学、代码、工具使用），可以在线生成大量回答并自动打分，PPO、GRPO 等在线方法能持续发现更好的解法，提升推理能力；③需要长链条、多步的推理或 agent 行为优化时，在线探索更重要。实践中还有折中方案：迭代式或在线 DPO（用当前模型重新采样并标注偏好），以及先 DPO 后 RL 的组合流程。
+**后续追问：** 追问常见于：DPO 损失的直觉是什么？DPO 为什么会过拟合偏好数据？什么是 GRPO？
+**上游参考：** [Direct Preference Optimization (DPO)](https://outcomeschool.com/blog/direct-preference-optimization-dpo)、[Proximal Policy Optimization (PPO)](https://outcomeschool.com/blog/proximal-policy-optimization-ppo)
+**扩展问题：**
+- 你有一个固定的 5 万条偏好数据集，你会选择 DPO 还是 PPO？为什么？
+- 为什么推理模型的训练更多采用在线强化学习而不是 DPO？
+- 如何把 DPO 改造成迭代式的在线方法？
+**推理回答：** 先列出 PPO-RLHF 的工程负担，再说明 DPO 如何绕开奖励模型和在线采样，最后指出离线方法的局限以及在线 RL 更合适的场景。
 
 #### 160. 什么是 instruction tuning？为什么对聊天模型重要？
 **答：** Instruction tuning 用大量“指令-回答”样本训练模型遵循自然语言任务说明。它让模型从单纯续写文本转向按用户意图完成任务，是聊天模型可用性的关键。高质量、多样且安全的指令数据比盲目扩大数量更重要。
@@ -2416,6 +2517,16 @@
 - 如何用测试、监控和用户反馈验证这个回答在真实系统中成立？
 **推理回答：** 先把问题定位到“微调与模型适配”中的模型适配层，决定行为、风格、格式和领域能力是否稳定迁移。通用题的推理重点是先明确目标和约束，再给出可验证、可回滚的工程判断。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“验证集质量、过拟合差距、灾难性遗忘指标、安全回归、推理成本”验证答案，而不是只依赖主观感觉。
 
+#### 586. 计算全参数微调一个 7B 模型（bf16，Adam 优化器）需要多少 GPU 显存？换成 LoRA 和 QLoRA 呢？
+**答：** 全参数微调（混合精度 + Adam）每个参数大约需要 16 字节：bf16 权重 2 字节 + bf16 梯度 2 字节 + fp32 主权重 4 字节 + Adam 一阶矩 4 字节 + 二阶矩 4 字节。7B × 16 字节 ≈ 112 GB，还不包括激活（与 batch 大小、序列长度相关，可通过梯度检查点降低）。所以单张 80 GB 卡放不下，需要多卡配合 ZeRO/FSDP 把优化器状态、梯度和参数分片。若不保留 fp32 主权重、纯 bf16 训练，约 12 字节/参数 ≈ 84 GB，仍然偏紧。
+**深入展开：** LoRA：原模型权重冻结，以 bf16 存储约 14 GB；只有 LoRA 适配器需要梯度和优化器状态。适配器参数通常只占原模型的 0.1%–1%（数百万到几千万个），按 16 字节/参数计，一般不到 1 GB。加上激活，总计大约 16–24 GB，单张 24–40 GB 的卡即可。QLoRA：把冻结的基座模型量化为 4 bit（NF4），7B 约 3.5 GB 加少量量化常数；适配器仍用 bf16 训练；加上激活，总共大约 6–10 GB，消费级显卡也能完成。代价：QLoRA 因为要反量化，训练速度较慢，精度可能略有损失。
+**后续追问：** 追问常见于：为什么 Adam 需要额外的状态？梯度检查点如何节省显存？ZeRO 的三个阶段分别切分了什么？
+**扩展问题：**
+- 如果把优化器换成 8 bit Adam，全参数微调的显存会降到多少？
+- LoRA 的秩 r 从 8 增加到 64，显存和效果会怎样变化？
+- 序列长度从 2K 增加到 8K 时，哪一部分显存增长最多？
+**推理回答：** 列出每参数的字节组成并计算全参数微调总量，再分别计算 LoRA 和 QLoRA 中冻结权重、适配器和激活的占用，最后给出硬件结论和取舍。
+
 #### 167. 如何为法律、医疗、金融等特定领域微调模型？
 **答：** 需要领域专家定义任务边界，准备合规数据，加入术语、格式、拒答和引用要求，并进行安全评估。医疗金融法律场景应避免模型替代专业判断，输出要有免责声明和人工审核。合规、隐私和审计比普通任务更重要。
 **深入展开：** 方案类回答应按“问题诊断 -> 短期止血 -> 长期工程治理 -> 验证指标 -> 风险边界”的顺序展开。在微调题中，要区分知识注入、行为适配、格式稳定和领域语言学习，并说明数据准备、训练策略、过拟合控制和上线评估。
@@ -2465,6 +2576,27 @@
 - 如果把“RLAIF”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“RLAIF”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“微调与模型适配”中的模型适配层，决定行为、风格、格式和领域能力是否稳定迁移。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“验证集质量、过拟合差距、灾难性遗忘指标、安全回归、推理成本”验证答案，而不是只依赖主观感觉。
+
+#### 587. 什么是 Constitutional AI（宪法式 AI）？它与 RLHF 有什么不同？
+**答：** Constitutional AI 是 Anthropic 提出的对齐方法，用一组明文写出的原则（“宪法”，例如“选择最无害、最诚实的回答”）来指导模型，减少对人类标注有害内容的依赖。分两个阶段：①监督阶段：让模型对有害提示生成回答，然后让模型依据宪法中的原则批评自己的回答并修改，用修改后的回答做监督微调；②强化学习阶段：让模型依据原则在两个回答中选出更好的一个，生成 AI 偏好数据，训练偏好模型，再做强化学习，即 RLAIF（基于 AI 反馈的强化学习）。
+**深入展开：** 与 RLHF 的区别：RLHF 的偏好标签来自人类标注员，成本高，标准隐含在标注员的判断中，而且标注员要大量接触有害内容；Constitutional AI 的无害性偏好主要由 AI 依据明文原则生成，可规模化，原则透明可审查、可修改。局限：效果依赖原则的写法和模型自身的判断能力；原则之间可能冲突；AI 反馈可能放大模型自身的偏差，仍需要人类评估把关。实践中常与人类反馈结合使用（例如有用性仍用人类偏好）。
+**后续追问：** 追问常见于：RLAIF 是什么？宪法如何编写？AI 反馈会不会带来偏差？
+**扩展问题：**
+- 如果宪法中“尽量有帮助”和“避免有害”两条原则冲突，模型会如何表现？如何改进？
+- 你会如何验证 AI 生成的偏好标签质量？
+- Constitutional AI 能否用于企业定制自己的行为规范？如何做？
+**推理回答：** 先介绍“明文原则 + 自我批评修改 + AI 反馈强化学习”的两阶段流程，再从反馈来源、成本、透明度方面对比 RLHF，最后说明局限。
+
+#### 588. 什么是 RLVR（基于可验证奖励的强化学习）？什么时候它优于学习得到的奖励模型？
+**答：** RLVR 用可以自动、客观判定的规则作为奖励，而不是用模型学出来的奖励。例如数学题答案与标准答案是否一致、代码能否通过单元测试、输出是否符合指定格式。训练时让模型对每个问题生成多个回答，用验证器打分，再用 PPO 或 GRPO 等算法强化得分高的回答。GRPO（组相对策略优化）对同一问题的一组回答，用组内平均得分作为基线计算相对优势，不需要单独的价值模型，节省显存，在推理模型训练中被广泛采用。
+**深入展开：** 优于学习型奖励模型的情况：①任务有明确的正确答案或可执行的检查（数学、代码、逻辑题、结构化抽取）；②学习型奖励模型容易被钻空子（模型学会迎合奖励模型的偏好，如写得更长、语气更自信），而规则验证器很难被这样利用；③不需要收集人类偏好数据，可以大规模自动生成训练信号，适合长链推理能力的训练。局限：开放式任务（写作、对话、帮助性）很难写出验证器；奖励稀疏时（大多数回答都错）学习困难，需要合适难度的题目；验证器本身有漏洞时（例如测试覆盖不全）同样会被利用。
+**后续追问：** 追问常见于：GRPO 和 PPO 有什么区别？奖励稀疏怎么办？验证器有漏洞会怎样？
+**上游参考：** [Group Relative Policy Optimization (GRPO)](https://outcomeschool.com/blog/group-relative-policy-optimization-grpo)
+**扩展问题：**
+- 一道题模型 16 次采样全部答错，GRPO 能从中学到东西吗？为什么？
+- 在代码任务中，如何防止模型通过修改测试或硬编码答案来获得奖励？
+- 如何把 RLVR 与学习型奖励模型结合用于同一个模型？
+**推理回答：** 先定义 RLVR 并说明训练流程和 GRPO，再分析它在可验证任务和防止奖励被利用方面的优势，最后指出适用边界。
 
 #### 172. 什么是微调中的知识蒸馏？法律考虑是什么？
 **答：** 知识蒸馏让学生模型学习教师模型输出、分布或推理过程，以获得更低成本部署。法律上要确认教师模型服务条款是否允许用输出训练竞争模型，训练数据是否含版权或个人信息，以及生成数据是否可再授权。企业应保留数据来源和许可记录。
@@ -2648,6 +2780,17 @@
 - 方案落地后如何通过离线评测、线上监控和回滚预案证明它有效？
 **推理回答：** 先把问题定位到“向量数据库与 Embedding”中的语义表示与检索层，决定相似性如何被编码、索引和查询。方案题的推理重点是先确认目标和现状，再区分根因定位、方案落地和验证闭环。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“recall@k、MRR、nDCG、查询延迟、内存成本、漂移监控”验证答案，而不是只依赖主观感觉。
 
+#### 589. 什么是对比学习？它如何用于训练 embedding 模型？
+**答：** 对比学习的思想是：让语义相似的样本（正样本对）在向量空间中靠近，让不相似的样本（负样本）远离。训练 embedding 模型时，构造（查询，相关文档）这样的正样本对，其他文档作为负样本，用对比损失（常见的是 InfoNCE）训练：最大化正样本对的相似度在所有候选中的占比。一个高效的做法是批内负样本（in-batch negatives）：同一个 batch 里其他样本的正文档都当作当前查询的负样本，不需要额外采样。
+**深入展开：** 关键因素：①难负样本（hard negatives）：与查询看起来相似但实际不相关的文档，能让模型学到更细的区分，通常由 BM25 或已有模型检索得到，但要避免把其实相关的文档误当作负样本；②batch 越大，批内负样本越多，效果通常越好；③温度参数控制相似度分布的尖锐程度；④数据来源：问答对、标题—正文、点击日志、同义改写，以及用 LLM 生成的合成查询。训练好的双编码器把查询和文档编码成向量，用于向量检索。图像领域的 CLIP 也是对比学习的例子（图文配对）。
+**后续追问：** 追问常见于：InfoNCE 损失的形式是什么？为什么需要难负样本？batch 大小为什么重要？
+**上游参考：** [What is Contrastive Learning?](https://outcomeschool.com/blog/contrastive-learning)
+**扩展问题：**
+- 你要为公司内部的技术文档训练一个 embedding 模型，但没有标注数据，如何构造训练对？
+- 难负样本中混入了实际相关的文档（假负样本），会有什么后果？如何缓解？
+- 温度参数过大或过小分别会怎样？
+**推理回答：** 先讲“拉近正样本、推远负样本”的核心思想，再说明 InfoNCE 和批内负样本，最后讨论难负样本、batch 大小和数据来源等实践要点。
+
 #### 180. 稀疏 embedding 与稠密 embedding 有何区别？
 **答：** 稀疏 embedding 如 BM25/TF-IDF，高维且大多为零，擅长关键词精确匹配；稠密 embedding 维度较低且连续，擅长语义相似。稀疏方法对罕见词和编号强，稠密方法对同义改写强。混合检索常比单一方法稳。
 **深入展开：** 概念类回答应先给准确定义，再说明工作机制、适用场景、局限性，并补一个生产场景例子。在向量题中，要把向量表示、距离函数、索引结构、元数据过滤、维度/量化成本和检索评估联系起来。
@@ -2677,6 +2820,39 @@
 - 如果把“向量数据库”用于真实生产系统，最容易暴露哪些质量、成本或安全问题？
 - 应该用哪些实验、指标或日志证明对“向量数据库”的理解和方案是正确的？
 **推理回答：** 先把问题定位到“向量数据库与 Embedding”中的语义表示与检索层，决定相似性如何被编码、索引和查询。概念题的推理重点是先界定输入、输出和边界，再说明机制为什么带来这些优缺点。推导时先确认目标和约束，再找关键失败模式；优先保证正确性、安全边界和可观测性，随后才优化成本、延迟和体验。如果证据不足，应选择可回滚的保守方案，例如拒答、人工审核、灰度、缓存、RAG 校验、工具校验或模型路由。最终用“recall@k、MRR、nDCG、查询延迟、内存成本、漂移监控”验证答案，而不是只依赖主观感觉。
+
+#### 590. 近似最近邻（ANN）搜索是如何工作的？
+**答：** 在向量检索中，精确的最近邻搜索需要把查询向量与库中每个向量计算距离，数据量达到百万、上亿时太慢。ANN 用少量精度损失换取数量级的速度提升：构建索引结构，让查询只需比较一小部分候选向量。主要方法：①基于图（如 HNSW）：把向量组织成多层的近邻图，从上层稀疏图快速定位大致区域，再在下层密集图中贪心地向更近的邻居移动；②基于聚类/倒排（IVF）：先用 k-means 把向量分成很多簇，查询时只搜索离查询最近的若干个簇；③量化（如乘积量化 PQ）：把向量压缩成短编码，节省内存并加速距离计算，常与 IVF 组合（IVF-PQ）；④基于哈希（LSH）：让相似向量以高概率落入同一个桶。
+**深入展开：** 评估 ANN 的指标是召回率（与精确搜索结果的重合比例）、查询延迟/吞吐、内存占用和构建时间。每种方法都有可调参数在召回和速度之间权衡，例如 HNSW 的 efSearch、IVF 的 nprobe（搜索的簇数）。实际系统还需要支持元数据过滤、增量插入和删除。
+**后续追问：** 追问常见于：HNSW 的分层结构起什么作用？IVF 的 nprobe 如何影响结果？乘积量化如何压缩向量？
+**上游参考：** [How does Approximate Nearest Neighbor (ANN) search work?](https://outcomeschool.com/blog/how-does-approximate-nearest-neighbor-ann-search-work)
+**扩展问题：**
+- 召回率从 95% 提高到 99% 通常要付出什么代价？
+- 如何在带元数据过滤的情况下保持 ANN 的召回率？
+- 为什么数据分布变化后 IVF 索引需要重新训练？
+**推理回答：** 先说明精确搜索的瓶颈和“以精度换速度”的思想，再分别介绍图、聚类、量化、哈希四类方法，最后讲评估指标和参数调优。
+
+#### 591. 比较 HNSW、IVF 和暴力（Flat）索引。如何选择？召回率 recall@k 要付出多少延迟代价？
+**答：** Flat（暴力搜索）：与每个向量逐一计算距离，召回率 100%，无需训练，但查询时间随数据量线性增长，适合几万到几十万规模，或作为评估其他索引的基准。HNSW：基于多层图，查询快、召回率高，支持增量插入；缺点是内存占用大（要存原始向量和图的边），构建较慢，删除支持较弱。IVF：先聚类再只搜索最近的若干簇，内存较省，可与乘积量化（PQ）组合大幅压缩，适合超大规模；需要先训练聚类中心，数据分布变化后可能需要重建，同等召回下延迟通常高于 HNSW。
+**深入展开：** 召回与延迟的权衡：HNSW 提高 efSearch、IVF 提高 nprobe 都会让召回率上升，但延迟随之增加；接近 100% 召回时，延迟增长会越来越快（边际收益递减）。所以要用自己的数据画出“召回率—延迟”曲线，选择满足业务要求的点，而不是追求最高召回。选择建议：数据量小或要求精确时用 Flat；内存充足、要求低延迟高召回时用 HNSW；数据量极大、内存受限时用 IVF-PQ（必要时对候选再用原始向量精排）。同时考虑是否需要频繁更新、是否需要元数据过滤和 GPU 加速。
+**后续追问：** 追问常见于：HNSW 的 M 和 efConstruction 参数有什么作用？IVF 的簇数如何确定？如何测量召回率？
+**上游参考：** [How does Approximate Nearest Neighbor (ANN) search work?](https://outcomeschool.com/blog/how-does-approximate-nearest-neighbor-ann-search-work)
+**扩展问题：**
+- 1 亿个 768 维 float32 向量，用 HNSW 大约需要多少内存？用 IVF-PQ 呢？
+- 召回率从 0.95 提升到 0.99，延迟可能增加多少？你会如何决定是否值得？
+- 你的数据每天新增 10%，会选哪种索引？为什么？
+**推理回答：** 分别说明三种索引的原理、优缺点和适用规模，再解释召回与延迟的非线性权衡，并强调用自己的数据画曲线来选择。
+
+#### 592. Embedding 缓存是如何工作的？
+**答：** Embedding 缓存把“文本 → 向量”的计算结果保存起来，同样的文本再次需要 embedding 时直接从缓存读取，避免重复调用 embedding 模型或 API。典型做法：对文本内容（连同 embedding 模型名称和版本）计算哈希作为键，向量作为值，存放在内存、Redis 或数据库中。查询时先查缓存，命中则直接返回；未命中再计算并写入缓存。
+**深入展开：** 适用场景：①重新建索引时大量文档未变化，只需对新增和修改的块计算；②用户频繁提出相同的查询；③开发调试时反复运行同一数据集。设计要点：①键必须包含模型名称和版本，换模型后旧向量不能混用，否则向量空间不一致；②文本预处理（大小写、空白、切块方式）要稳定，否则相同内容也会产生不同的键；③设置过期和容量淘汰策略（如 LRU）；④注意存储成本：向量占用不小；⑤它缓存的是精确相同文本的向量，与“语义缓存”（相似问题直接复用答案）不同。
+**后续追问：** 追问常见于：缓存键怎么设计？更换 embedding 模型时如何处理？与语义缓存有什么区别？
+**上游参考：** [How does an Embedding Cache work?](https://outcomeschool.com/blog/how-does-an-embedding-cache-work)
+**扩展问题：**
+- 你的 RAG 系统每晚重建索引，如何利用 embedding 缓存把成本降到最低？
+- 两段文本只差一个空格，缓存会命中吗？应该命中吗？
+- embedding 模型升级后，如何平滑地迁移缓存和向量索引？
+**推理回答：** 先说明缓存的基本原理和键值设计，再列出适用场景，最后强调模型版本、预处理一致性、淘汰策略，并与语义缓存区分。
 
 #### 183. 如何为用例选择合适 embedding 模型？
 **答：** 评估语言、领域、输入长度、维度、吞吐、延迟、成本和部署要求。用真实查询和相关文档构建评测集，比较 recall@k、MRR、nDCG。不要只依赖模型榜单，因为业务查询分布可能完全不同。
@@ -5957,7 +6133,7 @@
 
 <!-- mapping:start（由脚本生成，请勿手改） -->
 
-上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 534/568；“待补”表示后续批次补齐。
+上游：[amitshekhariitbhu/ai-engineering-interview-questions](https://github.com/amitshekhariitbhu/ai-engineering-interview-questions) README，按出现顺序编号 1–568（不计“Must Know”列表）。核对的上游提交：`2ce0a00`（2026-10-23）。已覆盖 550/568；“待补”表示后续批次补齐。
 
 | 上游题号 | 章节 | 本仓题号 | 上游题目 |
 |---:|---|---:|---|
@@ -6076,27 +6252,27 @@
 | 113 | 检索增强生成 RAG | 84 | What are the key components of a RAG pipeline? |
 | 114 | 检索增强生成 RAG | 85 | What are chunking strategies, and how do you choose the right chunk size? |
 | 115 | 检索增强生成 RAG | 86 | Compare fixed-size chunking, semantic chunking, and recursive chunking. |
-| 116 | 检索增强生成 RAG | 待补 | What is Contextual Retrieval, and how does it improve RAG? |
+| 116 | 检索增强生成 RAG | 577 | What is Contextual Retrieval, and how does it improve RAG? |
 | 117 | 检索增强生成 RAG | 87 | What are embedding models, and how do they convert text to vectors? |
 | 118 | 检索增强生成 RAG | 88 | How do you choose an embedding model for your RAG system? |
 | 119 | 检索增强生成 RAG | 89 | Explain Agentic RAG. |
 | 120 | 检索增强生成 RAG | 90 | What is hybrid search, and why is it better than pure vector search? |
 | 121 | 检索增强生成 RAG | 91 | What is re-ranking, and how does it improve RAG retrieval quality? |
-| 122 | 检索增强生成 RAG | 待补 | What is ColBERT, and how does late interaction retrieval work? |
-| 123 | 检索增强生成 RAG | 待补 | Compare reranker architectures: cross-encoder, ColBERT, and LLM-based rerankers. |
+| 122 | 检索增强生成 RAG | 578 | What is ColBERT, and how does late interaction retrieval work? |
+| 123 | 检索增强生成 RAG | 579 | Compare reranker architectures: cross-encoder, ColBERT, and LLM-based rerankers. |
 | 124 | 检索增强生成 RAG | 92 | How do you handle multi-document and multi-hop questions in RAG? |
 | 125 | 检索增强生成 RAG | 93 | What is the "lost in the middle" problem in RAG systems? |
 | 126 | 检索增强生成 RAG | 94 | How do you evaluate a RAG system? Explain faithfulness, relevance, and context precision/recall. |
 | 127 | 检索增强生成 RAG | 95 | Explain Self-RAG. How does the model decide when to retrieve? |
 | 128 | 检索增强生成 RAG | 96 | What is GraphRAG, and when would you use it over traditional RAG? |
-| 129 | 检索增强生成 RAG | 待补 | Vectorless RAG |
+| 129 | 检索增强生成 RAG | 580 | Vectorless RAG |
 | 130 | 检索增强生成 RAG | 97 | How do you handle structured data (tables, SQL databases) in a RAG pipeline? |
 | 131 | 检索增强生成 RAG | 98 | What are the common failure modes of RAG systems, and how do you debug them? |
 | 132 | 检索增强生成 RAG | 99 | How do you handle document updates and maintain freshness in a RAG system? |
 | 133 | 检索增强生成 RAG | 100 | How do you optimize RAG for latency in production? |
 | 134 | 检索增强生成 RAG | 101 | What is the role of metadata filtering in RAG systems? |
 | 135 | 检索增强生成 RAG | 102 | Compare RAG vs fine-tuning. When would you use each? |
-| 136 | 检索增强生成 RAG | 待补 | Long context windows keep getting cheaper. When should you use retrieval (RAG) vs putting everything in the context window? |
+| 136 | 检索增强生成 RAG | 581 | Long context windows keep getting cheaper. When should you use retrieval (RAG) vs putting everything in the context window? |
 | 137 | 检索增强生成 RAG | 103 | What is query transformation in RAG (HyDE, query decomposition, step-back prompting)? |
 | 138 | 检索增强生成 RAG | 104 | How do you implement citation and source attribution in RAG? |
 | 139 | 检索增强生成 RAG | 105 | How do you scale a RAG system to millions of documents? |
@@ -6171,13 +6347,13 @@
 | 208 | 微调与模型适配 | 154 | Explain the difference between full fine-tuning and parameter-efficient fine-tuning (PEFT). |
 | 209 | 微调与模型适配 | 155 | What is LoRA (Low-Rank Adaptation), and how does it work? |
 | 210 | 微调与模型适配 | 156 | What is QLoRA, and how does it enable fine-tuning on consumer hardware? |
-| 211 | 微调与模型适配 | 待补 | How does fine-tuning work? |
+| 211 | 微调与模型适配 | 582 | How does fine-tuning work? |
 | 212 | 微调与模型适配 | 157 | Explain Prefix Tuning and Prompt Tuning. How are they different from LoRA? |
 | 213 | 微调与模型适配 | 158 | What is adapter-based fine-tuning? |
-| 214 | 微调与模型适配 | 待补 | Explain the difference between pre-training, supervised fine-tuning (SFT), and preference optimization (RLHF/DPO). |
+| 214 | 微调与模型适配 | 583 | Explain the difference between pre-training, supervised fine-tuning (SFT), and preference optimization (RLHF/DPO). |
 | 215 | 微调与模型适配 | 159 | What is RLHF (Reinforcement Learning from Human Feedback), and how is it used to align LLMs? |
-| 216 | 微调与模型适配 | 待补 | What is Deep RL from Human Preferences, the paper that started RLHF? |
-| 217 | 微调与模型适配 | 待补 | Why did DPO displace PPO-based RLHF at many labs? When is online RL still better? |
+| 216 | 微调与模型适配 | 584 | What is Deep RL from Human Preferences, the paper that started RLHF? |
+| 217 | 微调与模型适配 | 585 | Why did DPO displace PPO-based RLHF at many labs? When is online RL still better? |
 | 218 | 微调与模型适配 | 160 | What is instruction tuning, and why is it important for chat models? |
 | 219 | 微调与模型适配 | 161 | How do you prepare a dataset for fine-tuning an LLM? |
 | 220 | 微调与模型适配 | 162 | What is catastrophic forgetting, and how do you prevent it during fine-tuning? |
@@ -6185,14 +6361,14 @@
 | 222 | 微调与模型适配 | 164 | How do you evaluate a fine-tuned model's performance? |
 | 223 | 微调与模型适配 | 165 | What is synthetic data generation, and how do you use it for fine-tuning? |
 | 224 | 微调与模型适配 | 166 | What are the key hyperparameters for fine-tuning (learning rate, epochs, batch size, LoRA rank)? |
-| 225 | 微调与模型适配 | 待补 | Do the GPU memory math for full fine-tuning a 7B model in bf16 with Adam. Now with LoRA and QLoRA. |
+| 225 | 微调与模型适配 | 586 | Do the GPU memory math for full fine-tuning a 7B model in bf16 with Adam. Now with LoRA and QLoRA. |
 | 226 | 微调与模型适配 | 167 | How do you fine-tune a model for a specific domain (legal, medical, finance)? |
 | 227 | 微调与模型适配 | 168 | What is continual pre-training, and when would you use it? |
 | 228 | 微调与模型适配 | 169 | How do you merge multiple LoRA adapters? |
 | 229 | 微调与模型适配 | 170 | What is the difference between SFT (Supervised Fine-Tuning) and alignment training? |
 | 230 | 微调与模型适配 | 171 | What is RLAIF (RL from AI Feedback), and how does it differ from RLHF? |
-| 231 | 微调与模型适配 | 待补 | What is Constitutional AI, and how does it differ from RLHF? |
-| 232 | 微调与模型适配 | 待补 | What is RLVR (Reinforcement Learning with Verifiable Rewards), and when does it beat a learned reward model? |
+| 231 | 微调与模型适配 | 587 | What is Constitutional AI, and how does it differ from RLHF? |
+| 232 | 微调与模型适配 | 588 | What is RLVR (Reinforcement Learning with Verifiable Rewards), and when does it beat a learned reward model? |
 | 233 | 微调与模型适配 | 172 | What is knowledge distillation for fine-tuning, and what are the legal considerations? |
 | 234 | 微调与模型适配 | 173 | Your fine-tuned LLM produces factually wrong outputs due to training data quality issues. How do you fix it? |
 | 235 | 微调与模型适配 | 174 | You must choose between LoRA and full fine-tuning for a domain-specific assistant. How do you decide? |
@@ -6201,13 +6377,13 @@
 | 238 | 微调与模型适配 | 177 | Your RLHF preference data has low annotator agreement. How do you ensure data quality? |
 | 239 | 向量数据库与 Embedding | 178 | What are embeddings in the context of AI engineering? |
 | 240 | 向量数据库与 Embedding | 179 | How do embedding models convert text to vectors? |
-| 241 | 向量数据库与 Embedding | 待补 | What is Contrastive Learning, and how is it used to train embedding models? |
+| 241 | 向量数据库与 Embedding | 589 | What is Contrastive Learning, and how is it used to train embedding models? |
 | 242 | 向量数据库与 Embedding | 180 | What is the difference between sparse and dense embeddings? |
 | 243 | 向量数据库与 Embedding | 181 | Explain cosine similarity, dot product, and Euclidean distance for vector search. |
 | 244 | 向量数据库与 Embedding | 182 | What is a vector database, and how does it differ from a traditional database? |
-| 245 | 向量数据库与 Embedding | 待补 | How does Approximate Nearest Neighbor (ANN) search work? |
-| 246 | 向量数据库与 Embedding | 待补 | Compare HNSW, IVF, and flat indexes. How do you pick one, and what does recall@k cost in latency? |
-| 247 | 向量数据库与 Embedding | 待补 | How does an Embedding Cache work? |
+| 245 | 向量数据库与 Embedding | 590 | How does Approximate Nearest Neighbor (ANN) search work? |
+| 246 | 向量数据库与 Embedding | 591 | Compare HNSW, IVF, and flat indexes. How do you pick one, and what does recall@k cost in latency? |
+| 247 | 向量数据库与 Embedding | 592 | How does an Embedding Cache work? |
 | 248 | 向量数据库与 Embedding | 183 | How do you choose the right embedding model for your use case? |
 | 249 | 向量数据库与 Embedding | 184 | What is embedding dimensionality, and how does it affect performance and cost? |
 | 250 | 向量数据库与 Embedding | 185 | How do you handle embedding drift when the embedding model is updated? |
